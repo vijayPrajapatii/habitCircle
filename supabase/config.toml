@@ -1,0 +1,8 @@
+project_id = "habitcircle"
+organization_id = ""
+database_url = ""
+api_url = "http://localhost:54321"
+graphql_url = "http://localhost:54321/graphql/v1"
+studio_url = "http://localhost:54323"
+inbucket_url = "http://localhost:54324"
+db_url = "postgresql://postgres:password@localhost:54322/postgres"

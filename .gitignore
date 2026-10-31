@@ -1,0 +1,43 @@
+# Dependencies
+/node_modules
+/.pnpm-store
+
+# Next.js build output
+/.next/
+/out/
+
+# Production build
+/build
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local environment variables
+.env*.local
+.env
+.env.production
+
+# Supabase
+.branches
+/supabase/.temp
+
+# IDE / OS
+.DS_Store
+*.pem
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage
+/coverage/
+
+# Vitest
+.vitest/
+
+# Playwright
+/test-results/
+/playwright-report/
