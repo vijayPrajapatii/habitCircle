@@ -155,5 +155,57 @@ $$;
 REVOKE ALL ON FUNCTION public.create_group_with_owner(TEXT, TEXT, INTEGER, TEXT, TEXT, INTEGER) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_group_with_owner(TEXT, TEXT, INTEGER, TEXT, TEXT, INTEGER) TO authenticated;
 
+-- 10. Fix the invitation RPC's enum-array type resolution
+CREATE OR REPLACE FUNCTION public.create_group_invitation(
+  p_group_id UUID,
+  p_created_by UUID,
+  p_max_uses INTEGER DEFAULT 1,
+  p_expires_in INTERVAL DEFAULT '7 days',
+  p_email TEXT DEFAULT NULL
+)
+RETURNS public.group_invitations
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_invitation public.group_invitations;
+BEGIN
+  IF NOT public.has_group_role(
+    p_group_id,
+    p_created_by,
+    ARRAY['owner', 'admin']::public.user_role[]
+  ) THEN
+    RAISE EXCEPTION 'Only owner or admin can create invitations';
+  END IF;
+
+  IF (
+    SELECT count(*)
+    FROM public.group_invitations
+    WHERE group_id = p_group_id
+      AND status = 'pending'
+      AND expires_at > now()
+  ) >= 50 THEN
+    RAISE EXCEPTION 'Too many active invitations for this group';
+  END IF;
+
+  INSERT INTO public.group_invitations (group_id, created_by, code, max_uses, expires_at, email)
+  VALUES (
+    p_group_id,
+    p_created_by,
+    public.generate_invite_code(),
+    p_max_uses,
+    now() + p_expires_in,
+    p_email
+  )
+  RETURNING * INTO v_invitation;
+
+  RETURN v_invitation;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_group_invitation(UUID, UUID, INTEGER, INTERVAL, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_group_invitation(UUID, UUID, INTEGER, INTERVAL, TEXT) TO authenticated;
+
 -- Success message
 SELECT 'RLS policies fixed. Group and habit creation are ready.';
