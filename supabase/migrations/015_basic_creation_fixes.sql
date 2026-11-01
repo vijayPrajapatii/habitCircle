@@ -17,6 +17,21 @@ end $$;
 
 create index if not exists habits_created_by_idx on public.habits (created_by);
 
+-- Safely recover legacy creators only where the group had one active member.
+update public.habits h
+set created_by = gm.user_id
+from public.group_members gm
+where h.created_by is null
+  and gm.group_id = h.group_id
+  and gm.left_at is null
+  and not exists (
+    select 1
+    from public.group_members other_gm
+    where other_gm.group_id = h.group_id
+      and other_gm.left_at is null
+      and other_gm.user_id <> gm.user_id
+  );
+
 drop policy if exists "habits_insert_member" on public.habits;
 create policy "habits_insert_member" on public.habits for insert with check (
   exists (

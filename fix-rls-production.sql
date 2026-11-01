@@ -20,6 +20,21 @@ $$;
 
 CREATE INDEX IF NOT EXISTS habits_created_by_idx ON public.habits (created_by);
 
+-- Safely recover legacy creators only where the group had one active member
+UPDATE public.habits h
+SET created_by = gm.user_id
+FROM public.group_members gm
+WHERE h.created_by IS NULL
+  AND gm.group_id = h.group_id
+  AND gm.left_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.group_members other_gm
+    WHERE other_gm.group_id = h.group_id
+      AND other_gm.left_at IS NULL
+      AND other_gm.user_id <> gm.user_id
+  );
+
 DROP POLICY IF EXISTS "habits_insert_member" ON public.habits;
 CREATE POLICY "habits_insert_member" ON public.habits FOR INSERT WITH CHECK (
   EXISTS (

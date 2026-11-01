@@ -52,9 +52,20 @@ export interface Habit {
 }
 
 async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClient>>, habits: any[]) {
+  const creatorIds = habits.map(habit => habit.created_by).filter(Boolean)
+  const { data: creators } = creatorIds.length
+    ? await supabase.from('profiles').select('id, username').in('id', creatorIds)
+    : { data: [] }
+  const creatorsById = new Map((creators || []).map(creator => [creator.id, creator]))
+
   const scheduleIds = habits.map(habit => habit.habit_schedules?.[0]?.id).filter(Boolean)
   if (!scheduleIds.length) {
-    return habits.map(habit => ({ ...habit, occurrences: [], checkins: [] }))
+    return habits.map(habit => ({
+      ...habit,
+      creator: creatorsById.get(habit.created_by) || null,
+      occurrences: [],
+      checkins: [],
+    }))
   }
 
   const { data: occurrences } = await supabase
@@ -82,6 +93,7 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
     const occurrence = (occurrences as any[] | null)?.find(item => item.schedule_id === schedule?.id)
     return {
       ...habit,
+      creator: creatorsById.get(habit.created_by) || null,
       occurrences: occurrence ? [occurrence] : [],
       checkins: occurrence?.checkins || [],
     }
@@ -121,7 +133,6 @@ export async function getUserHabits(userId?: string): Promise<{ habits: Habit[] 
       name,
       timezone,
       created_at,
-      creator:profiles!habits_created_by_fkey (id, username),
       group:groups (
         id,
         name,
@@ -183,7 +194,6 @@ export async function getGroupHabits(groupId: string): Promise<{ habits: Habit[]
       name,
       timezone,
       created_at,
-      creator:profiles!habits_created_by_fkey (id, username),
       group:groups (
         id,
         name,
