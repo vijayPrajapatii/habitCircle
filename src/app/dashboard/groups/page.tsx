@@ -17,6 +17,10 @@ interface Group {
   created_at: string
 }
 
+interface GroupMember {
+  groups: Group
+}
+
 export default function GroupsPage() {
   const router = useRouter()
   const [groups, setGroups] = useState<Group[]>([])
@@ -36,7 +40,7 @@ export default function GroupsPage() {
       }
 
       supabase
-        .from('group_members')
+        .from('group_members' as any)
         .select(`
           groups (id, name, description, penalty_amount, currency, max_members, created_at)
         `)
@@ -45,7 +49,8 @@ export default function GroupsPage() {
         .order('joined_at', { ascending: false })
         .then(({ data, error }) => {
           if (error) console.error(error)
-          setGroups(data?.map(g => g.groups) || [])
+          const flat: Group[] = (data as any[] | null)?.flatMap((g: any) => g.groups) || []
+          setGroups(flat)
           setLoading(false)
         })
     })
