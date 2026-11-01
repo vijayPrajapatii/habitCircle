@@ -97,21 +97,6 @@ export default function GroupPage() {
       return
     }
 
-    // Check if already a member
-    const { data: existingMembers } = await supabase
-      .from('group_members')
-      .select('id')
-      .eq('group_id', params?.groupId)
-      .eq('user_id', user.id)
-      .is('left_at', null)
-
-    if (!existingMembers || existingMembers.length === 0) {
-      setInviteError('You must be a member to invite others')
-      setInviting(false)
-      return
-    }
-
-    // Create invitation record
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 48)
 
@@ -139,21 +124,6 @@ export default function GroupPage() {
       navigator.clipboard.writeText(inviteLink)
       alert('Invite link copied to clipboard!')
     }
-  }
-
-  const handleLeaveGroup = async () => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
-    await supabase
-      .from('group_members')
-      .update({ left_at: new Date().toISOString() })
-      .eq('group_id', params?.groupId)
-      .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-
-    router.push('/dashboard/groups')
   }
 
   if (loading) {
@@ -192,7 +162,7 @@ export default function GroupPage() {
           {/* Email invitation */}
           <form onSubmit={(e) => { e.preventDefault(); handleInvite(); }} className="space-y-3 mb-4">
             <div>
-              <Label htmlFor="email">Friend&apos;s email</Label>
+              <Label htmlFor="email">Friend's email</Label>
               <Input
                 id="email"
                 type="email"
@@ -217,7 +187,7 @@ export default function GroupPage() {
               </div>
             )}
 
-            <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>
+            <Button type="submit" onClick={handleInvite} disabled={inviting || !inviteEmail}>
               {inviting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
               Send Invitation
             </Button>
@@ -229,12 +199,12 @@ export default function GroupPage() {
               <Copy className="h-4 w-4 mr-2" />
               Copy Invite Link
             </Button>
-            <<p className="text-xs text-muted-foreground mt-2">
-              Or share this link: {`${process.env.NEXT_PUBLIC_SITE_URL}/invite/[groupId]`}
+            <p className="text-xs text-muted-foreground mt-2">
+              Or share this link with friends
             </p>
           </div>
         </CardContent>
-      </div>
+      </Card>
     </div>
   )
 }
