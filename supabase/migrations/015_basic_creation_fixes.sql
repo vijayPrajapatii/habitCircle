@@ -42,6 +42,11 @@ create policy "habits_insert_member" on public.habits for insert with check (
   )
 );
 
+drop policy if exists "habits_delete_creator" on public.habits;
+create policy "habits_delete_creator" on public.habits for delete using (
+  created_by = auth.uid()
+);
+
 -- The membership read policy must not query group_members through its own RLS policy.
 drop policy if exists "group_members_select_member" on public.group_members;
 drop policy if exists "group_members_select_self" on public.group_members;

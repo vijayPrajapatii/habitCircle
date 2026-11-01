@@ -45,6 +45,11 @@ CREATE POLICY "habits_insert_member" ON public.habits FOR INSERT WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "habits_delete_creator" ON public.habits;
+CREATE POLICY "habits_delete_creator" ON public.habits FOR DELETE USING (
+  created_by = auth.uid()
+);
+
 -- 1. Fix groups INSERT policy
 -- Allows any authenticated user to create a group
 DROP POLICY IF EXISTS "groups_insert_authenticated" ON public.groups;

@@ -414,3 +414,33 @@ export async function checkInHabit(
 
   return { checkin, error: null }
 }
+
+export async function deleteHabit(habitId: string): Promise<{ success: boolean; error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  const { data: habit, error: habitError } = await supabase
+    .from('habits' as any)
+    .select('created_by')
+    .eq('id', habitId)
+    .single()
+
+  if (habitError || !habit) {
+    return { success: false, error: 'Habit not found' }
+  }
+  if (habit.created_by !== user.id) {
+    return { success: false, error: 'Only the habit creator can delete this habit' }
+  }
+
+  const { error } = await supabase
+    .from('habits' as any)
+    .delete()
+    .eq('id', habitId)
+
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, error: null }
+}
