@@ -7,10 +7,6 @@ import {
   LayoutDashboard,
   Users,
   Target,
-  Activity,
-  Trophy,
-  Wallet,
-  Bell,
   Settings,
   Menu,
   X,
@@ -26,10 +22,6 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'My Groups', href: '/dashboard/groups', icon: Users },
   { name: 'My Habits', href: '/dashboard/habits', icon: Target },
-  { name: 'Activity Feed', href: '/dashboard/activity', icon: Activity },
-  { name: 'Leaderboard', href: '/dashboard/leaderboard', icon: Trophy },
-  { name: 'Financial Ledger', href: '/dashboard/ledger', icon: Wallet },
-  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 

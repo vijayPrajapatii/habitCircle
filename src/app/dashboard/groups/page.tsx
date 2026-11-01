@@ -58,42 +58,34 @@ export default function GroupsPage() {
 
   const handleCreateGroup = async () => {
     setCreateLoading(true)
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setCreateLoading(false)
-      return
-    }
+    const formData = new FormData()
+    formData.append('name', 'New Group')
+    formData.append('description', '')
+    formData.append('penalty_amount', '1000')
+    formData.append('currency', 'INR')
+    formData.append('timezone', 'UTC')
+    formData.append('max_members', '10')
 
-    const { data: group } = await supabase
-      .from('groups')
-      .insert({
-        name: 'New Group',
-        description: '',
-        penalty_amount: 1000,
-        currency: 'INR',
-        timezone: 'UTC',
-        max_members: 10,
-        created_by: user.id,
+    try {
+      const response = await fetch('/api/groups/create', {
+        method: 'POST',
+        body: formData,
       })
-      .select()
-      .single()
+      const result = await response.json()
 
-    if (group) {
-      await supabase
-        .from('group_members')
-        .insert({
-          group_id: group.id,
-          user_id: user.id,
-          role: 'owner',
-        })
-      setGroups([group, ...groups])
+      if (result.group) {
+        setGroups([result.group, ...groups])
+        router.push(`/dashboard/groups/${result.group.id}`)
+      } else {
+        alert(result.error || 'Failed to create group')
+      }
+    } catch (error) {
+      console.error('Error creating group:', error)
+      alert('Error creating group')
+    } finally {
+      setCreateLoading(false)
     }
-    setCreateLoading(false)
   }
 
   if (loading) {
