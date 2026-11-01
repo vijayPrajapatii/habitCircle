@@ -44,7 +44,18 @@
 
 ### Group Pages
 - ✅ /dashboard/groups - List groups, create group dialog, invite dialog
+- ✅ /dashboard/groups/[groupId] - Group detail page with Habits section (all members can view habits)
 - ✅ /invite/accept - Accept invitation by code or link token
+
+### Habits Feature
+- ✅ `src/features/habits/` - Created actions, schemas, types
+- ✅ `/dashboard/habits` - Habits list page with create habit dialog
+- ✅ Habits are visible to all group members (RLS policy: habits_select_member)
+
+### UI Cleanup (Phase 2 focus)
+- Removed: Activity Feed, Leaderboard, Financial Ledger, Notifications from navigation
+- Updated: Dashboard page to fetch real habits from database
+- Updated: Settings page (removed Notifications section)
 
 ### Pending / Next Steps
 - [ ] Run `supabase start` and `supabase db reset` to apply migrations

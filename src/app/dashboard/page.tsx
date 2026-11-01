@@ -1,7 +1,10 @@
 'use client'
 
-import { Target, Flame, Users, Calendar } from 'lucide-react'
+import { Target, Flame, Users, Calendar, CheckCircle2, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useEffect, useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
+import { Habit } from '@/features/habits/types'
 
 function StatCard({
   title,
@@ -10,7 +13,7 @@ function StatCard({
   icon: Icon,
 }: {
   title: string
-  value: string
+  value: string | number
   description: string
   icon: React.ComponentType<{ className?: string }>
 }) {
@@ -27,7 +30,6 @@ function StatCard({
     </Card>
   )
 }
-
 
 function HabitRow({
   name,
@@ -67,6 +69,89 @@ function HabitRow({
 }
 
 export default function DashboardPage() {
+  const [habits, setHabits] = useState<Habit[]>([])
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [habitCount, setHabitCount] = useState(0)
+  const [completedCount, setCompletedCount] = useState(0)
+
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    const loadData = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Load user's groups
+      const { data: groupData, error: groupError } = await supabase
+        .from('group_members' as any)
+        .select('groups (id, name)')
+        .eq('user_id', user.id)
+        .is('left_at', null)
+
+      if (!groupError && groupData) {
+        const flat = (groupData as any[]).flatMap((g: any) => g.groups || [])
+        const uniqueGroups = Array.from(new Map(flat.map(g => [g.id, g])).values())
+        setGroups(uniqueGroups)
+      }
+
+      // Load habits from all user's groups
+      if (groups.length > 0 || groupData) {
+        const groupIds = groups.length > 0 ? groups.map(g => g.id) :
+          (groupData as any[] | null)?.flatMap((g: any) => g.groups?.id || [])
+
+        if (groupIds.length > 0) {
+          const { data: habitData, error: habitError } = await supabase
+            .from('habits' as any)
+            .select(`
+              id,
+              name,
+              timezone,
+              created_at,
+              group:groups (id, name),
+              schedule:habit_schedules (frequency, target_quantity),
+              occurrences (status)
+            `)
+            .in('group_id', groupIds)
+            .order('created_at', { ascending: false })
+
+          if (!habitError && habitData) {
+            const transformed = (habitData as any[]).map(h => ({
+              ...h,
+              group: h.groups,
+              schedule: h.habit_schedules?.[0]
+            }))
+            setHabits(transformed)
+            setHabitCount(transformed.length)
+
+            const completed = transformed.reduce((acc, h) =>
+              acc + (h.occurrences?.filter((o: any) => o.status === 'verified').length || 0), 0)
+            setCompletedCount(completed)
+          }
+        }
+      }
+
+      setLoading(false)
+    }
+
+    loadData()
+  }, [groups])
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    )
+  }
+
+  const thisWeek = habits.length > 0
+    ? `${Math.round((completedCount / Math.max(1, habits.length)) * 100)}%`
+    : '0%'
+
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
@@ -79,8 +164,8 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Today's Habits"
-          value="3"
-          description="2 completed, 1 pending"
+          value={habits.length}
+          description="active habits"
           icon={Target}
         />
         <StatCard
@@ -91,56 +176,80 @@ export default function DashboardPage() {
         />
         <StatCard
           title="This Week"
-          value="85%"
+          value={thisWeek}
           description="completion rate"
           icon={Target}
         />
         <StatCard
           title="Active Groups"
-          value="2"
+          value={groups.length}
           description="groups you're in"
           icon={Users}
         />
       </div>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-              <Calendar className="h-5 w-5 text-primary" />
-              <span className="font-medium">Check In Now</span>
-            </button>
-            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-              <Target className="h-5 w-5 text-muted-foreground" />
-              <span>View My Habits</span>
-            </button>
-            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-              <Users className="h-5 w-5 text-muted-foreground" />
-              <span>Browse Groups</span>
-            </button>
-          </CardContent>
-        </Card>
-
-      </div>
-
-      {/* Upcoming Habits */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle>Upcoming Habits</CardTitle>
+          <CardTitle className="text-base">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <HabitRow name="Morning Run" frequency="Daily" time="6:00 AM" status="pending" />
-            <HabitRow name="Read 20 pages" frequency="Daily" time="9:00 PM" status="completed" />
-            <HabitRow name="Weekly Workout" frequency="Weekly (Mon/Wed/Fri)" time="7:00 PM" status="pending" />
-            <HabitRow name="Meditation" frequency="Daily" time="8:00 AM" status="pending" />
-          </div>
+        <CardContent className="space-y-3">
+          <button
+            className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left flex items-center"
+            onClick={() => window.location.href = '/dashboard/groups'}
+          >
+            <Calendar className="h-5 w-5 text-primary" />
+            <span className="font-medium">Check In Now</span>
+          </button>
+          <button
+            className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left flex items-center"
+            onClick={() => window.location.href = '/dashboard/habits'}
+          >
+            <Target className="h-5 w-5 text-muted-foreground" />
+            <span>View My Habits</span>
+          </button>
+          <button
+            className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left flex items-center"
+            onClick={() => window.location.href = '/dashboard/groups'}
+          >
+            <Users className="h-5 w-5 text-muted-foreground" />
+            <span>Browse Groups</span>
+          </button>
         </CardContent>
       </Card>
+
+      {/* Upcoming Habits */}
+      {habits.length > 0 ? (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle>Upcoming Habits</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {habits.slice(0, 5).map(habit => (
+                <HabitRow
+                  key={habit.id}
+                  name={habit.name}
+                  frequency={habit.schedule?.frequency || 'daily'}
+                  time={habit.created_at}
+                  status={habit.occurrences?.some((o: any) => o.status === 'verified') ? 'completed' : 'pending'}
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Habits</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-center py-4">
+              No habits yet. Create one in your groups!
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
