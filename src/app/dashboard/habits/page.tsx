@@ -20,6 +20,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/hooks/use-toast'
+import { HabitCreationDialog, type CircleOption } from '@/components/habits/habit-creation-dialog'
 
 interface Group {
   id: string
@@ -44,6 +45,12 @@ interface Habit {
     profile: { username: string } | null
   }[]
   created_at: string
+  occurrences?: {
+    id: string
+    period_start: string
+    period_end: string
+    status: string
+  }[]
 }
 
 function HabitsSkeleton() {

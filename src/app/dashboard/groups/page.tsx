@@ -14,12 +14,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Plus, Users, Loader2, ArrowRight } from 'lucide-react'
+import { Plus, Users, Loader2, ArrowRight, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/hooks/use-toast'
+import { EditGroupStakesDialog } from '@/components/groups/edit-group-stakes-dialog'
 
 interface Group {
   id: string
@@ -64,6 +65,7 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editGroup, setEditGroup] = useState<Group | null>(null)
   const [createLoading, setCreateLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -207,7 +209,17 @@ export default function GroupsPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold text-sm sm:text-base truncate flex-1">{group.name}</h3>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground opacity-60 group-hover/card:opacity-100 group-hover/card:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); setEditGroup(group) }}
+                      className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={`Edit ${group.name} stakes`}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-60 group-hover/card:opacity-100 group-hover/card:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2 min-h-[32px]">
                   {group.description || 'No description provided.'}
@@ -225,6 +237,17 @@ export default function GroupsPage() {
           ))}
         </div>
       )}
+
+      {/* Edit Stakes Dialog */}
+      <EditGroupStakesDialog
+        open={Boolean(editGroup)}
+        onOpenChange={(open) => { if (!open) setEditGroup(null) }}
+        group={editGroup!}
+        onSuccess={(updatedGroup) => {
+          setGroups(current => current.map(g => g.id === updatedGroup.id ? { ...g, ...updatedGroup } : g))
+          setEditGroup(null)
+        }}
+      />
 
       {/* Responsive Create Group Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open) }}>

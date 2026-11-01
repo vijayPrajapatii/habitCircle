@@ -57,6 +57,72 @@ const updateGroupNameSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
 })
 
+const updateGroupSettingsSchema = z.object({
+  group_id: z.string().uuid(),
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
+  description: z.string().max(500).optional().default(''),
+  penalty_amount: z.number().int().positive('Penalty must be positive'),
+  currency: z.string().length(3).default('INR'),
+  max_members: z.number().int().min(2).max(50).default(10),
+})
+
+export async function updateGroupSettings(formData: FormData) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Not authenticated' }
+  }
+
+  const penaltyRaw = formData.get('penalty_amount')
+  const maxMembersRaw = formData.get('max_members')
+
+  const result = updateGroupSettingsSchema.safeParse({
+    group_id: formData.get('group_id'),
+    name: formData.get('name'),
+    description: (formData.get('description') as string) || '',
+    penalty_amount: typeof penaltyRaw === 'number' ? penaltyRaw : parseInt(penaltyRaw as string, 10),
+    currency: (formData.get('currency') as string) || 'INR',
+    max_members: typeof maxMembersRaw === 'number' ? maxMembersRaw : parseInt(maxMembersRaw as string, 10),
+  })
+
+  if (!result.success) {
+    return { error: result.error.errors[0].message }
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from('group_members')
+    .select('role')
+    .eq('group_id', result.data.group_id)
+    .eq('user_id', user.id)
+    .is('left_at', null)
+    .single()
+
+  if (membershipError || !membership || membership.role !== 'owner') {
+    return { error: 'Only the circle owner can edit circle stakes and settings' }
+  }
+
+  const { data: group, error } = await supabase
+    .from('groups')
+    .update({
+      name: result.data.name,
+      description: result.data.description,
+      penalty_amount: result.data.penalty_amount,
+      currency: result.data.currency,
+      max_members: result.data.max_members,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', result.data.group_id)
+    .select()
+    .single()
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  return { group }
+}
+
 export async function updateGroupName(formData: FormData) {
   const supabase = await createClient()
 

@@ -9,6 +9,7 @@ const createHabitSchema = z.object({
   frequency: z.enum(['daily', 'weekly', 'monthly', 'quantity', 'custom']),
   target_quantity: z.number().int().positive().default(1),
   timezone: z.string().default('UTC'),
+  custom_cron: z.string().optional().nullable(),
 })
 
 export interface Habit {
@@ -70,12 +71,32 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
     }))
   }
 
+  // Calculate current period start/end in UTC (used for daily habits)
+  // For weekly/monthly, the occurrence logic is more complex
+  const now = new Date()
+  const utcPeriodStart = new Date(now)
+  utcPeriodStart.setUTCHours(0, 0, 0, 0)
+  const utcPeriodEnd = new Date(utcPeriodStart)
+  utcPeriodEnd.setUTCDate(utcPeriodEnd.getUTCDate() + 1)
+
   const { data: occurrences } = await supabase
     .from('habit_occurrences' as any)
     .select('id, schedule_id, period_start, period_end, status')
     .in('schedule_id', scheduleIds)
     .order('period_start', { ascending: false })
 
+  // Build a map of current period occurrences for each schedule
+  const currentPeriodOccurrences = new Map<string, any>()
+  if (occurrences) {
+    for (const occ of occurrences) {
+      // Check if this occurrence matches the current UTC period
+      if (occ.period_start === utcPeriodStart.toISOString()) {
+        currentPeriodOccurrences.set(occ.schedule_id, occ)
+      }
+    }
+  }
+
+  // Get all occurrence IDs to fetch checkins
   const occurrenceIds = (occurrences as any[] | null)?.map(occurrence => occurrence.id) || []
   const { data: checkins } = occurrenceIds.length
     ? await supabase
@@ -100,7 +121,11 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
 
   return habits.map(habit => {
     const schedule = habit.schedule || habit.habit_schedules?.[0]
-    const occurrence = (occurrences as any[] | null)?.find(item => item.schedule_id === schedule?.id)
+    const scheduleId = schedule?.id
+    // Use current period occurrence if available, otherwise fall back to most recent
+    const currentOccurrence = scheduleId ? currentPeriodOccurrences.get(scheduleId) : null
+    const occurrence = currentOccurrence || (occurrences as any[] | null)?.find(item => item.schedule_id === schedule?.id)
+
     return {
       ...habit,
       creator: creatorsById.get(habit.created_by) || null,
@@ -248,6 +273,7 @@ export async function createHabit(formData: FormData): Promise<{ habit: Habit | 
     frequency: formData.get('frequency'),
     target_quantity: parseInt(formData.get('target_quantity') as string, 10),
     timezone: formData.get('timezone') as string,
+    custom_cron: (formData.get('custom_cron') as string) || null,
   }
 
   const result = createHabitSchema.safeParse(rawData)
@@ -255,7 +281,7 @@ export async function createHabit(formData: FormData): Promise<{ habit: Habit | 
     return { habit: null, error: result.error.errors[0].message }
   }
 
-  const { group_id, name, frequency, target_quantity, timezone } = result.data
+  const { group_id, name, frequency, target_quantity, timezone, custom_cron } = result.data
 
   // Verify user is an active member of the group.
   const { data: memberData, error: memberError } = await supabase
@@ -311,6 +337,7 @@ export async function createHabit(formData: FormData): Promise<{ habit: Habit | 
       habit_id: habit.id,
       frequency,
       target_quantity,
+      custom_cron: custom_cron || null,
     })
 
   if (scheduleError) {
