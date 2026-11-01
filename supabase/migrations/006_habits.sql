@@ -24,7 +24,7 @@ create table if not exists public.habit_versions (
 );
 
 -- Ensure unique version per habit
-create unique index if not exists habit_versions_unique per habit on public.habit_versions (habit_id, version);
+create unique index if not exists habit_versions_unique on public.habit_versions (habit_id, version);
 
 -- Habit Schedules
 create table if not exists public.habit_schedules (
