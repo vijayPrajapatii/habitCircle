@@ -324,12 +324,16 @@ export async function checkInHabit(
 
   const { data: habit } = await supabase
     .from('habits' as any)
-    .select('id, group_id, habit_schedules(id)')
+    .select('id, group_id, created_by, habit_schedules(id)')
     .eq('id', result.data.habit_id)
     .single()
   const scheduleId = (habit as any)?.habit_schedules?.[0]?.id
   if (!habit || !scheduleId) {
     return { checkin: null, error: 'Habit schedule not found' }
+  }
+
+  if ((habit as any).created_by !== user.id) {
+    return { checkin: null, error: 'Only the habit creator can check in' }
   }
 
   const { data: membership } = await supabase

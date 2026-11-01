@@ -158,6 +158,7 @@ CREATE POLICY "habit_occurrences_insert_member"
       JOIN public.habits h ON h.id = hs.habit_id
       JOIN public.group_members gm ON gm.group_id = h.group_id
       WHERE hs.id = habit_occurrences.schedule_id
+        AND h.created_by = auth.uid()
         AND gm.user_id = auth.uid()
         AND gm.left_at IS NULL
     )
@@ -174,6 +175,7 @@ CREATE POLICY "habit_checkins_insert_own" ON public.habit_checkins FOR INSERT WI
     JOIN public.habits h ON h.id = hs.habit_id
     JOIN public.group_members gm ON gm.group_id = h.group_id
     WHERE ho.id = habit_checkins.occurrence_id
+      AND h.created_by = auth.uid()
       AND gm.user_id = auth.uid()
       AND gm.left_at IS NULL
   )

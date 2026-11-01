@@ -182,10 +182,12 @@ export default function HabitsPage() {
                     size="sm"
                     variant={habit.checkins.some(checkin => checkin.profile_id === currentUserId) ? 'secondary' : 'default'}
                     onClick={() => handleCheckIn(habit.id)}
-                    disabled={checkingIn === habit.id || habit.checkins.some(checkin => checkin.profile_id === currentUserId)}
+                    disabled={habit.created_by !== currentUserId || checkingIn === habit.id || habit.checkins.some(checkin => checkin.profile_id === currentUserId)}
                   >
                     {checkingIn === habit.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    {habit.checkins.some(checkin => checkin.profile_id === currentUserId) ? 'Checked in' : 'Check in'}
+                    {habit.created_by !== currentUserId
+                      ? 'View only'
+                      : habit.checkins.some(checkin => checkin.profile_id === currentUserId) ? 'Checked in' : 'Check in'}
                   </Button>
                   <span className="text-xs text-muted-foreground">
                     {habit.checkins.length} checked in

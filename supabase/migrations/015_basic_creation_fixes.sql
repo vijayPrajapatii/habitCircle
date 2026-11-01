@@ -61,6 +61,7 @@ create policy "habit_occurrences_insert_member"
       join public.habits h on h.id = hs.habit_id
       join public.group_members gm on gm.group_id = h.group_id
       where hs.id = habit_occurrences.schedule_id
+        and h.created_by = auth.uid()
         and gm.user_id = auth.uid()
         and gm.left_at is null
     )
@@ -77,6 +78,7 @@ create policy "habit_checkins_insert_own" on public.habit_checkins for insert wi
     join public.habits h on h.id = hs.habit_id
     join public.group_members gm on gm.group_id = h.group_id
     where ho.id = habit_checkins.occurrence_id
+      and h.created_by = auth.uid()
       and gm.user_id = auth.uid()
       and gm.left_at is null
   )
