@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Users,
@@ -14,12 +14,13 @@ import {
   Settings,
   Menu,
   X,
-  Home,
   User,
   LogOut,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME } from '@/config/brand'
+import { createClient } from '@/lib/supabase/client'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -34,7 +35,71 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const [userName, setUserName] = useState('User')
+  const [userEmail, setUserEmail] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (user) {
+          setUserEmail(user.email || '')
+
+          // Get display name from metadata or use email prefix as fallback
+          const metadataName = user.user_metadata?.full_name || user.user_metadata?.name
+          if (metadataName) {
+            setUserName(metadataName)
+          } else if (user.email) {
+            // Use email prefix as fallback
+            setUserName(user.email.split('@')[0])
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchUser()
+
+    // Listen for auth state changes
+    const { data: { subscription } } = createClient().auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const user = session.user
+        setUserEmail(user.email || '')
+        const metadataName = user.user_metadata?.full_name || user.user_metadata?.name
+        if (metadataName) {
+          setUserName(metadataName)
+        } else if (user.email) {
+          setUserName(user.email.split('@')[0])
+        }
+      } else {
+        setUserName('User')
+        setUserEmail('')
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      router.push('/login')
+      router.refresh()
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
 
   return (
     <>
@@ -102,8 +167,17 @@ export function Sidebar() {
               <User className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">User Name</p>
-              <p className="text-xs text-muted-foreground truncate">user@example.com</p>
+              {isLoading ? (
+                <div className="animate-pulse">
+                  <div className="h-4 w-24 bg-muted rounded"></div>
+                  <div className="h-3 w-32 mt-1 bg-muted rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm font-medium truncate">{userName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                </>
+              )}
             </div>
           </div>
           <Link
@@ -114,6 +188,7 @@ export function Sidebar() {
             Settings
           </Link>
           <button
+            onClick={handleSignOut}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground mt-2 w-full text-left"
           >
             <LogOut className="h-5 w-5" />
