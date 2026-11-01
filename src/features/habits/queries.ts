@@ -11,20 +11,7 @@ export async function getUserHabits(groupId: string) {
   // Get habits in the group
   const { data: habits, error } = await supabase
     .from('habits')
-    .select(`
-      id,
-      name,
-      frequency,
-      target_quantity,
-      timezone,
-      penalty_amount,
-      created_at,
-      schedules: habit_schedules (
-        id,
-        frequency,
-        target_quantity
-      )
-    `)
+    .select('id, name, timezone, created_at')
     .eq('group_id', groupId)
     .order('created_at', { ascending: false })
 
@@ -32,60 +19,24 @@ export async function getUserHabits(groupId: string) {
     return { habits: [], error: error.message }
   }
 
-  // Get checkins for today
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-
-  const { data: checkins } = await supabase
-    .from('habit_checkins')
-    .select('habit_id, status')
+  // Get schedule info
+  const { data: schedules } = await supabase
+    .from('habit_schedules')
+    .select('habit_id, frequency, target_quantity')
     .in('habit_id', habits?.map(h => h.id) || [])
-    .eq('profile_id', user.id)
 
-  // Mark which habits have been checked in
-  const checkedInIds = checkins?.map(c => c.habit_id) || []
+  // Add schedule info to habits
+  const scheduleByHabit = Object.fromEntries(
+    (schedules || []).map(s => [s.habit_id, s])
+  )
 
   const result = habits?.map(h => ({
     ...h,
-    checked_in: checkedInIds.includes(h.id),
-    penalty_amount: h.schedules?.[0]?.target_quantity || 1000,
+    frequency: scheduleByHabit[h.id]?.frequency || 'daily',
+    target_quantity: scheduleByHabit[h.id]?.target_quantity || 1,
+    penalty_amount: 1000,
+    checked_in: false,
   })) || []
 
   return { habits: result, error: null }
-}
-
-export async function getGroupHabitCheckins(groupId: string) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { checkins: [], error: 'Not authenticated' }
-  }
-
-  // Get all habits in group
-  const { data: habits } = await supabase
-    .from('habits')
-    .select('id, name')
-    .eq('group_id', groupId)
-
-  // Get all checkins for this group
-  const { data: checkins, error } = await supabase
-    .from('habit_checkins')
-    .select(`
-      id,
-      profile_id,
-      quantity,
-      status,
-      created_at,
-      profiles(username)
-    `)
-    .in('habit_id', habits?.map(h => h.id) || [])
-    .eq('status', 'submitted')
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    return { checkins: [], error: error.message }
-  }
-
-  return { checkins: checkins || [], error: null }
 }

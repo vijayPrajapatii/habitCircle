@@ -5,7 +5,7 @@ export async function getUserGroups() {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return { groups: null, error: 'Not authenticated' }
+    return { groups: [], error: 'Not authenticated' }
   }
 
   const { data: groups, error } = await supabase
@@ -31,7 +31,7 @@ export async function getUserGroups() {
     .order('joined_at', { ascending: false })
 
   if (error) {
-    return { groups: null, error: error.message }
+    return { groups: [], error: error.message }
   }
 
   // Flatten the data
@@ -69,7 +69,7 @@ export async function getGroupDetail(groupId: string) {
         role,
         joined_at,
         left_at,
-        profiles (id, username, created_at)
+        profiles (id, username, email)
       )
     `)
     .eq('id', groupId)

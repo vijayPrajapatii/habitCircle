@@ -2,10 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, CheckCircle, Calendar } from 'lucide-react'
 import Link from 'next/link'
-import { getGroupDetail } from '@/features/groups/queries'
-import { getUserHabits } from '@/features/habits/queries'
-import { Checkbox } from '@/components/ui/checkbox'
-import { format, parseISO, isToday, isYesterday, subDays } from 'date-fns'
+import { getGroupDetail, getUserHabits } from '@/features/groups/queries'
+import { format } from 'date-fns'
 
 async function GroupDetailContent({ params }: { params: { groupId: string } }) {
   const { group, members } = await getGroupDetail(params.groupId)
@@ -15,9 +13,7 @@ async function GroupDetailContent({ params }: { params: { groupId: string } }) {
     return <div>Group not found</div>
   }
 
-  // Mock checkin status - in real app this would come from DB
   const today = new Date()
-  const userCheckins = ['habit-1', 'habit-3'] // Mock - replace with actual checkins
 
   return (
     <div className="space-y-6">
@@ -35,7 +31,7 @@ async function GroupDetailContent({ params }: { params: { groupId: string } }) {
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    {member.profile?.username?.[0]?.toUpperCase() || '?'}
+                    {(member.profile?.username || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <p className="font-medium">{member.profile?.username || 'Unknown'}</p>
@@ -53,7 +49,7 @@ async function GroupDetailContent({ params }: { params: { groupId: string } }) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Today&apos;s Habits</h2>
           <Link href={`/dashboard/groups/${group.id}/habits/new`}>
-            <Button size="sm">
+            <Button variant="ghost" size="sm">
               <Plus className="h-4 w-4 mr-2" />
               Add Habit
             </Button>
@@ -68,13 +64,12 @@ async function GroupDetailContent({ params }: { params: { groupId: string } }) {
                   <div>
                     <p className="font-medium">{habit.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {habit.frequency} • ₹{habit.penalty_amount} penalty
+                      {habit.frequency} • Penalty: ₹{habit.penalty_amount}
                     </p>
                   </div>
-                  <Checkbox
-                    checked={userCheckins.includes(habit.id)}
-                    onCheckedChange={() => {}}
-                  />
+                  <Button variant="ghost" size="sm">
+                    <CheckCircle className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </CardContent>
