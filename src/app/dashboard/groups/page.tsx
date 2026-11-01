@@ -15,6 +15,7 @@ interface Group {
   currency: string
   max_members: number
   created_at: string
+  member_count: number
 }
 
 interface GroupMember {
@@ -42,14 +43,21 @@ export default function GroupsPage() {
       supabase
         .from('group_members' as any)
         .select(`
-          groups (id, name, description, penalty_amount, currency, max_members, created_at)
+          groups (id, name, description, penalty_amount, currency, max_members, created_at, group_members(id))
         `)
         .eq('user_id', user.id)
         .is('left_at', null)
         .order('joined_at', { ascending: false })
         .then(({ data, error }) => {
           if (error) console.error(error)
-          const flat: Group[] = (data as any[] | null)?.flatMap((g: any) => g.groups) || []
+          const flat: Group[] = (data as any[] | null)?.flatMap((g: any) => {
+            const group = g.groups
+            if (!group) return []
+            return [{
+              ...group,
+              member_count: group.group_members?.length || 0,
+            }]
+          }) || []
           setGroups(flat)
           setLoading(false)
         })
@@ -121,7 +129,7 @@ export default function GroupsPage() {
                 <h3 className="font-semibold">{group.name}</h3>
                 <p className="text-xs text-muted-foreground mt-1">{group.description}</p>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  {group.max_members} members
+                  {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
                 </div>
               </CardContent>
             </Card>

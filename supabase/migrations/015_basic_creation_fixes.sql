@@ -45,9 +45,10 @@ create policy "habits_insert_member" on public.habits for insert with check (
 -- The membership read policy must not query group_members through its own RLS policy.
 drop policy if exists "group_members_select_member" on public.group_members;
 drop policy if exists "group_members_select_self" on public.group_members;
-create policy "group_members_select_self"
+drop policy if exists "group_members_select_own" on public.group_members;
+create policy "group_members_select_member"
   on public.group_members for select
-  using (user_id = auth.uid());
+  using (public.is_group_member(group_id, auth.uid()));
 
 -- Active group members may create schedules for habits in their groups.
 drop policy if exists "habit_schedules_insert_admin" on public.habit_schedules;

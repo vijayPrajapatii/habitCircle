@@ -142,9 +142,9 @@ ALTER TABLE public.group_members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "group_members_select_member" ON public.group_members;
 DROP POLICY IF EXISTS "group_members_select_own" ON public.group_members;
 DROP POLICY IF EXISTS "group_members_select_self" ON public.group_members;
-CREATE POLICY "group_members_select_self"
+CREATE POLICY "group_members_select_member"
   ON public.group_members FOR SELECT
-  USING (user_id = auth.uid());
+  USING (public.is_group_member(group_id, auth.uid()));
 
 -- 8. Allow group admins and owners to create habit schedules
 DROP POLICY IF EXISTS "habit_schedules_insert_admin" ON public.habit_schedules;
