@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { createInvitation } from '@/features/invitations/actions'
 import { Users, Loader2, Send, Copy, AlertCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -83,32 +84,15 @@ export default function GroupPage() {
     setInviteSuccess('')
     setInviteError('')
 
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const formData = new FormData()
+    formData.append('group_id', params.groupId)
+    formData.append('email', inviteEmail)
+    formData.append('max_uses', '1')
+    formData.append('expires_in_days', '2')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setInviteError('Not authenticated')
-      setInviting(false)
-      return
-    }
-
-    const expiresAt = new Date()
-    expiresAt.setHours(expiresAt.getHours() + 48)
-
-    const { error } = await supabase
-      .from('group_invitations')
-      .insert({
-        group_id: params.groupId,
-        email: inviteEmail,
-        inviter_id: user.id,
-        expires_at: expiresAt.toISOString(),
-      })
-
-    if (error) {
-      setInviteError(error.message)
+    const result = await createInvitation(formData)
+    if (result.error) {
+      setInviteError(result.error)
     } else {
       setInviteSuccess('Invitation sent! They will receive an email with a link to join.')
       setInviteEmail('')
@@ -184,7 +168,7 @@ export default function GroupPage() {
               </div>
             )}
 
-            <Button type="submit" onClick={handleInvite} disabled={inviting || !inviteEmail}>
+            <Button type="submit" disabled={inviting || !inviteEmail}>
               {inviting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
               Send Invitation
             </Button>
