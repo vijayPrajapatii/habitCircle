@@ -188,7 +188,7 @@ export default function HabitsPage() {
       ) : (
         <div className="grid gap-4 sm:gap-4 xs:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {habits.map((habit) => (
-            <Card key={habit.id}>
+            <Card key={`${habit.id}-${habit.checkins.length}-${habit.created_at}`}>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold text-sm sm:text-base truncate">{habit.name}</h3>

@@ -556,3 +556,4 @@ The UI plan is complete only when:
 Use this prompt before each phase:
 
 > You are implementing one phase of HabitCircle's premium UI plan. Read `CLAUDE.md`, this plan, and every target file before editing. Work only on the current phase. Preserve existing user changes. Do not change database schema, RLS, auth, money logic, API contracts, or dependencies. Make the smallest coherent edits. Use existing components, Tailwind, lucide-react, and brand tokens. After editing, run `pnpm typecheck`, `pnpm lint`, and `pnpm test`. If any command fails, stop and fix only the current phase. Report files changed, behavior improved, validation results, and remaining gaps. Do not start the next phase without explicit approval.
+    
