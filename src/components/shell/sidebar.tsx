@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Users,
   Target,
-  Settings,
   Menu,
   X,
   User,
@@ -22,7 +21,6 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Groups', href: '/dashboard/groups', icon: Users },
   { name: 'Habits', href: '/dashboard/habits', icon: Target },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
 export function Sidebar() {
