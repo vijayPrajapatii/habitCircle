@@ -249,5 +249,7 @@ export async function createHabit(formData: FormData): Promise<{ habit: Habit | 
     return { habit: null, error: scheduleError.message }
   }
 
-  return { habit: habit as Habit, error: null }
+  // Transform the habit data to include occurrences if present
+  const habitWithOccurrences = { ...habit, occurrences: [] }
+  return { habit: habitWithOccurrences as unknown as Habit, error: null }
 }

@@ -4,7 +4,32 @@ import { Target, Flame, Users, Calendar, CheckCircle2, Loader2 } from 'lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { Habit } from '@/features/habits/types'
+
+interface Habit {
+  id: string
+  group_id: string
+  name: string
+  timezone: string
+  created_at: string
+  group: {
+    id: string
+    name: string
+    penalty_amount: number
+    currency: string
+  }
+  schedule: {
+    id: string
+    frequency: string
+    target_quantity: number
+    custom_cron: string | null
+  }
+  occurrences?: {
+    id: string
+    period_start: string
+    period_end: string
+    status: string
+  }[]
+}
 
 function StatCard({
   title,
@@ -76,12 +101,12 @@ export default function DashboardPage() {
   const [completedCount, setCompletedCount] = useState(0)
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
     const loadData = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -98,39 +123,38 @@ export default function DashboardPage() {
         setGroups(uniqueGroups)
       }
 
-      // Load habits from all user's groups
-      if (groups.length > 0 || groupData) {
-        const groupIds = groups.length > 0 ? groups.map(g => g.id) :
-          (groupData as any[] | null)?.flatMap((g: any) => g.groups?.id || [])
+      // Build consistent group IDs list from either source
+      const groupIds: string[] = groups.length > 0 && groups !== null
+        ? groups.map(g => g.id)
+        : (groupData as any[] | null)?.flatMap((g: any) => g.groups?.id || []) ?? []
 
-        if (groupIds.length > 0) {
-          const { data: habitData, error: habitError } = await supabase
-            .from('habits' as any)
-            .select(`
-              id,
-              name,
-              timezone,
-              created_at,
-              group:groups (id, name),
-              schedule:habit_schedules (frequency, target_quantity),
-              occurrences (status)
-            `)
-            .in('group_id', groupIds)
-            .order('created_at', { ascending: false })
+      if (groupIds.length > 0) {
+        const { data: habitData, error: habitError } = await supabase
+          .from('habits' as any)
+          .select(`
+            id,
+            name,
+            timezone,
+            created_at,
+            group:groups (id, name),
+            schedule:habit_schedules (frequency, target_quantity),
+            occurrences (status)
+          `)
+          .in('group_id', groupIds)
+          .order('created_at', { ascending: false })
 
-          if (!habitError && habitData) {
-            const transformed = (habitData as any[]).map(h => ({
-              ...h,
-              group: h.groups,
-              schedule: h.habit_schedules?.[0]
-            }))
-            setHabits(transformed)
-            setHabitCount(transformed.length)
+        if (!habitError && habitData) {
+          const transformed = (habitData as any[]).map(h => ({
+            ...h,
+            group: h.groups,
+            schedule: h.habit_schedules?.[0]
+          }))
+          setHabits(transformed)
+          setHabitCount(transformed.length)
 
-            const completed = transformed.reduce((acc, h) =>
-              acc + (h.occurrences?.filter((o: any) => o.status === 'verified').length || 0), 0)
-            setCompletedCount(completed)
-          }
+          const completed = transformed.reduce((acc, h) =>
+            acc + (h.occurrences?.filter((o: any) => o.status === 'verified').length || 0), 0)
+          setCompletedCount(completed)
         }
       }
 

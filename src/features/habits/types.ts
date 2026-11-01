@@ -16,7 +16,7 @@ export interface Habit {
     target_quantity: number
     custom_cron: string | null
   }
-  occurrences: {
+  occurrences?: {
     id: string
     period_start: string
     period_end: string
