@@ -95,6 +95,33 @@ HabitCircle has evolved from a functional prototype into an end-to-end, startup-
 - ✅ Vitest unit suite passed (45/45 tests green).
 - ✅ `pnpm build` passed (all routes compiled cleanly).
 
+### 12. Settlement & Debt Resolution (Recent Completion)
+- ✅ **Settle Up Dialog** (`src/components/settlements/settle-up-dialog.tsx`):
+  - UI for recording peer-to-peer settlements
+  - Multiple payment methods (UPI, Cash, Bank Transfer, PayPal, Other)
+  - Amount input with currency prefix
+  - Transaction reference/note field
+- ✅ **Settlements Actions** (`src/features/settlements/actions.ts`):
+  - `getCircleSettlements`: Fetch debt/credit overview for peers
+  - `recordSettlement`: Record peer payment with atomic RPC fallback
+  - Ledger entries for audit trail
+  - Automatic penalty marking as paid when settlement confirmed
+- ✅ **Migration 016**: RLS policies and RPC functions for:
+  - `record_habit_miss`: Atomic penalty creation on habit miss
+  - `record_peer_settlement`: Atomic payment recording
+  - Proper access controls for penalties, allocations, ledger, payments
+- ✅ **Edit Group Stakes Dialog** (`src/components/groups/edit-group-stakes-dialog.tsx`):
+  - Owner-only circle settings edit
+  - Edit name, description, penalty amount, currency, max members
+  - Visual transparency about equal-split penalty distribution
+- ✅ **Habit Creation Improvements**:
+  - `custom_cron` metadata support for advanced scheduling
+  - Timezone-aware habit creation
+  - Better frequency options (daily, weekly, monthly, quantity, custom)
+- ✅ **Check-in Status Fix**:
+  - Habits page now correctly shows current period check-in status
+  - Prevents false "Checked in" states from previous periods
+
 ---
 
 ## Verification Commands
