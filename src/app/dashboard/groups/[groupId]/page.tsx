@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, CheckCircle, Calendar } from 'lucide-react'
 import Link from 'next/link'
-import { getGroupDetail, getUserHabits } from '@/features/groups/queries'
+import { getGroupDetail, getUserHabits } from '@/features/habits/queries'
 import { format } from 'date-fns'
 
 async function GroupDetailContent({ params }: { params: { groupId: string } }) {
