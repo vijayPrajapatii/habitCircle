@@ -2,14 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Users, Target, Activity, User } from 'lucide-react'
+import { Home, Users, Target, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Home', href: '/dashboard', icon: Home },
   { name: 'Groups', href: '/dashboard/groups', icon: Users },
   { name: 'Habits', href: '/dashboard/habits', icon: Target },
-  { name: 'Activity', href: '/dashboard/activity', icon: Activity },
   { name: 'Profile', href: '/dashboard/profile', icon: User },
 ]
 
@@ -22,7 +21,7 @@ export function BottomNav() {
       role="navigation"
       aria-label="Bottom navigation"
     >
-      <ul className="grid grid-cols-5" role="list">
+      <ul className="grid grid-cols-4" role="list">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           return (

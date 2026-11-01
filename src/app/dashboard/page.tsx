@@ -1,6 +1,6 @@
 'use client'
 
-import { Target, Flame, Trophy, Users, Calendar, CheckCircle2 } from 'lucide-react'
+import { Target, Flame, Users, Calendar } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 function StatCard({
@@ -28,31 +28,6 @@ function StatCard({
   )
 }
 
-function ActivityItem({
-  user,
-  action,
-  habit,
-  time,
-}: {
-  user: string
-  action: string
-  habit: string
-  time: string
-}) {
-  return (
-    <div className="flex items-center gap-3 text-sm">
-      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-        <CheckCircle2 className="h-4 w-4 text-primary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">
-          <span className="font-semibold">{user}</span> {action} <span className="font-medium">{habit}</span>
-        </p>
-        <p className="text-xs text-muted-foreground">{time}</p>
-      </div>
-    </div>
-  )
-}
 
 function HabitRow({
   name,
@@ -118,7 +93,7 @@ export default function DashboardPage() {
           title="This Week"
           value="85%"
           description="completion rate"
-          icon={Trophy}
+          icon={Target}
         />
         <StatCard
           title="Active Groups"
@@ -147,42 +122,9 @@ export default function DashboardPage() {
               <Users className="h-5 w-5 text-muted-foreground" />
               <span>Browse Groups</span>
             </button>
-            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-              <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
-              <span>Review Activity</span>
-            </button>
           </CardContent>
         </Card>
 
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base">Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ActivityItem
-              user="You"
-              action="completed"
-              habit="Morning Run"
-              time="2 hours ago"
-            />
-            <ActivityItem
-              user="Alex"
-              action="verified your"
-              habit="Read 20 pages"
-              time="4 hours ago"
-            />
-            <ActivityItem
-              user="Sam"
-              action="joined"
-              habit="Weekly Workout"
-              time="1 day ago"
-            />
-            <div className="text-center pt-2">
-              <button className="text-sm text-primary hover:underline">View all activity</button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Upcoming Habits */}

@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { User, Bell, Shield, Palette, Moon, Sun, LogOut } from 'lucide-react'
+import { User, Shield, Palette, Moon, Sun, LogOut } from 'lucide-react'
 
 export default function SettingsPage() {
   return (
@@ -78,18 +78,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Notifications Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notifications
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">Notification preferences coming soon.</p>
-        </CardContent>
-      </Card>
 
       {/* Security Section */}
       <Card>
