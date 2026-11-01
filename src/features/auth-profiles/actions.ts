@@ -21,7 +21,7 @@ export async function signUp(formData: FormData) {
 
   const result = signUpSchema.safeParse(rawData)
   if (!result.success) {
-    return { error: 'Invalid input' }
+    return { error: 'Invalid input. Please check your email, password, and username.' }
   }
 
   const { email, password, username } = result.data
@@ -31,15 +31,22 @@ export async function signUp(formData: FormData) {
     password,
     options: {
       data: { username },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login?message=Check your email to confirm your account`,
     },
   })
 
   if (error) {
+    // Return user-friendly error messages for common issues
+    if (error.message.toLowerCase().includes('user already registered') || error.message.toLowerCase().includes('email already registered')) {
+      return { error: 'An account with this email already exists. Please sign in or use a different email.' }
+    }
+    if (error.message.toLowerCase().includes('rate limit') || error.message.toLowerCase().includes('too many')) {
+      return { error: 'Too many sign-up attempts. Please check your email for a confirmation link, or wait a few minutes before trying again.' }
+    }
     return { error: error.message }
   }
 
-  redirect('/login?message=Check your email to confirm your account')
+  return { success: true }
 }
 
 const signInSchema = z.object({

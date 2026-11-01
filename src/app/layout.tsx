@@ -6,8 +6,13 @@ import { Providers } from '@/components/providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'HabitCircle - Build Habits Together',
+  title: 'HabitCircle',
   description: 'Social habit accountability with friends. Commit, check in, and stay accountable.',
+  icons: [
+    { rel: 'icon', url: '/favicon.svg', type: 'image/svg+xml' },
+    { rel: 'icon', url: '/favicon.ico' },
+    { rel: 'apple-touch-icon', url: '/favicon.ico' },
+  ],
 }
 
 export default function RootLayout({

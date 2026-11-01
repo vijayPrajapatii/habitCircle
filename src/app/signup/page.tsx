@@ -30,16 +30,23 @@ export default function SignupPage() {
     formData.append('password', password)
     formData.append('username', username)
 
-    const result = await signUp(formData)
+    try {
+      const result = await signUp(formData)
 
-    if (result?.error) {
-      setError(result.error)
-    } else {
-      router.push('/login?message=Check your email to confirm your account')
-      router.refresh()
+      if (result?.error) {
+        // Display user-friendly error message
+        setError(result.error)
+      } else {
+        router.push('/login?message=Check your email to confirm your account')
+        router.refresh()
+      }
+    } catch (catchError) {
+      // Handle unexpected errors
+      const msg = catchError instanceof Error ? catchError.message : 'An unexpected error occurred'
+      setError(msg)
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   return (
@@ -124,8 +131,14 @@ export default function SignupPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Create Account
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Creating account...
+                </>
+              ) : (
+                'Create Account'
+              )}
             </Button>
           </form>
 
@@ -138,7 +151,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full gap-2" onClick={() => {}}>
+          <Button variant="outline" className="w-full gap-2" disabled={loading}>
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
