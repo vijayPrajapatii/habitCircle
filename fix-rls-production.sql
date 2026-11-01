@@ -222,5 +222,82 @@ $$;
 REVOKE ALL ON FUNCTION public.create_group_invitation(UUID, UUID, INTEGER, INTERVAL, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_group_invitation(UUID, UUID, INTEGER, INTERVAL, TEXT) TO authenticated;
 
+-- 12. Fix invitation status enum assignments during acceptance
+CREATE OR REPLACE FUNCTION public.accept_group_invitation(
+  p_code TEXT DEFAULT NULL,
+  p_link_token UUID DEFAULT NULL
+)
+RETURNS public.group_members
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_invitation public.group_invitations;
+  v_member public.group_members;
+BEGIN
+  SELECT * INTO v_invitation
+  FROM public.group_invitations
+  WHERE (p_code IS NOT NULL AND code = p_code)
+     OR (p_link_token IS NOT NULL AND link_token = p_link_token)
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Invalid invitation';
+  END IF;
+
+  IF v_invitation.status <> 'pending'::public.invitation_status THEN
+    RAISE EXCEPTION 'Invitation is no longer valid';
+  END IF;
+
+  IF v_invitation.expires_at < now() THEN
+    UPDATE public.group_invitations
+    SET status = 'expired'::public.invitation_status
+    WHERE id = v_invitation.id;
+    RAISE EXCEPTION 'Invitation has expired';
+  END IF;
+
+  IF v_invitation.uses_count >= v_invitation.max_uses THEN
+    RAISE EXCEPTION 'Invitation has reached maximum uses';
+  END IF;
+
+  IF public.is_group_member(v_invitation.group_id, auth.uid()) THEN
+    RAISE EXCEPTION 'Already a member of this group';
+  END IF;
+
+  IF (
+    SELECT count(*) FROM public.group_members
+    WHERE group_id = v_invitation.group_id AND left_at IS NULL
+  ) >= (
+    SELECT max_members FROM public.groups WHERE id = v_invitation.group_id
+  ) THEN
+    RAISE EXCEPTION 'Group has reached maximum members';
+  END IF;
+
+  IF v_invitation.email IS NOT NULL
+     AND (SELECT email FROM auth.users WHERE id = auth.uid()) <> v_invitation.email THEN
+    RAISE EXCEPTION 'This invitation was sent to a different email address';
+  END IF;
+
+  INSERT INTO public.group_members (group_id, user_id, role)
+  VALUES (v_invitation.group_id, auth.uid(), 'member')
+  RETURNING * INTO v_member;
+
+  UPDATE public.group_invitations
+  SET uses_count = uses_count + 1,
+      status = CASE
+        WHEN uses_count + 1 >= max_uses THEN 'accepted'::public.invitation_status
+        ELSE 'pending'::public.invitation_status
+      END,
+      updated_at = now()
+  WHERE id = v_invitation.id;
+
+  RETURN v_member;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.accept_group_invitation(TEXT, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.accept_group_invitation(TEXT, UUID) TO authenticated;
+
 -- Success message
 SELECT 'RLS policies fixed. Group and habit creation are ready.';

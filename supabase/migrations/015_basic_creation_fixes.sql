@@ -117,3 +117,80 @@ $$;
 
 revoke all on function public.create_group_invitation(uuid, uuid, integer, interval, text) from public;
 grant execute on function public.create_group_invitation(uuid, uuid, integer, interval, text) to authenticated;
+
+-- Fix invitation status enum assignments during acceptance.
+create or replace function public.accept_group_invitation(
+  p_code text default null,
+  p_link_token uuid default null
+)
+returns public.group_members
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invitation public.group_invitations;
+  v_member public.group_members;
+begin
+  select * into v_invitation
+  from public.group_invitations
+  where (p_code is not null and code = p_code)
+     or (p_link_token is not null and link_token = p_link_token)
+  limit 1;
+
+  if not found then
+    raise exception 'Invalid invitation';
+  end if;
+
+  if v_invitation.status <> 'pending'::public.invitation_status then
+    raise exception 'Invitation is no longer valid';
+  end if;
+
+  if v_invitation.expires_at < now() then
+    update public.group_invitations
+    set status = 'expired'::public.invitation_status
+    where id = v_invitation.id;
+    raise exception 'Invitation has expired';
+  end if;
+
+  if v_invitation.uses_count >= v_invitation.max_uses then
+    raise exception 'Invitation has reached maximum uses';
+  end if;
+
+  if public.is_group_member(v_invitation.group_id, auth.uid()) then
+    raise exception 'Already a member of this group';
+  end if;
+
+  if (
+    select count(*) from public.group_members
+    where group_id = v_invitation.group_id and left_at is null
+  ) >= (
+    select max_members from public.groups where id = v_invitation.group_id
+  ) then
+    raise exception 'Group has reached maximum members';
+  end if;
+
+  if v_invitation.email is not null
+     and (select email from auth.users where id = auth.uid()) <> v_invitation.email then
+    raise exception 'This invitation was sent to a different email address';
+  end if;
+
+  insert into public.group_members (group_id, user_id, role)
+  values (v_invitation.group_id, auth.uid(), 'member')
+  returning * into v_member;
+
+  update public.group_invitations
+  set uses_count = uses_count + 1,
+      status = case
+        when uses_count + 1 >= max_uses then 'accepted'::public.invitation_status
+        else 'pending'::public.invitation_status
+      end,
+      updated_at = now()
+  where id = v_invitation.id;
+
+  return v_member;
+end;
+$$;
+
+revoke all on function public.accept_group_invitation(text, uuid) from public;
+grant execute on function public.accept_group_invitation(text, uuid) to authenticated;
