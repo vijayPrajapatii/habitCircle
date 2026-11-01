@@ -58,7 +58,9 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
     : { data: [] }
   const creatorsById = new Map((creators || []).map(creator => [creator.id, creator]))
 
-  const scheduleIds = habits.map(habit => habit.habit_schedules?.[0]?.id).filter(Boolean)
+  const scheduleIds = habits
+    .map(habit => habit.schedule?.id || habit.habit_schedules?.[0]?.id)
+    .filter(Boolean)
   if (!scheduleIds.length) {
     return habits.map(habit => ({
       ...habit,
@@ -97,7 +99,7 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
   }
 
   return habits.map(habit => {
-    const schedule = habit.habit_schedules?.[0]
+    const schedule = habit.schedule || habit.habit_schedules?.[0]
     const occurrence = (occurrences as any[] | null)?.find(item => item.schedule_id === schedule?.id)
     return {
       ...habit,
