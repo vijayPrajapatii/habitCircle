@@ -407,7 +407,13 @@ export async function checkInHabit(
 
   if (error) {
     if (error.code === '23505') {
-      return { checkin: null, error: 'You already checked in for this period' }
+      const { data: existingCheckin } = await supabase
+        .from('habit_checkins' as any)
+        .select('id')
+        .eq('occurrence_id', occurrence.id)
+        .eq('profile_id', user.id)
+        .maybeSingle()
+      return { checkin: existingCheckin, error: null }
     }
     return { checkin: null, error: error.message }
   }
