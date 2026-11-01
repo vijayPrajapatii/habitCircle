@@ -54,7 +54,7 @@
 
 ### UI Cleanup (Phase 2 focus)
 - Changed navigation labels: "My Groups" → "Groups", "My Habits" → "Habits"
-- Added full navigation menu to sidebar (Activity Feed, Leaderboard, Financial Ledger, Notifications)
+- Kept the primary navigation focused on Dashboard, Groups, Habits, and Settings; Activity Feed, Leaderboard, and Financial Ledger remain deferred
 - Created new profile page at /dashboard/profile with editable fields
 - Updated Settings page to be a proper settings page (not disabled inputs)
 - Updated bottom navigation for mobile (Home, Groups, Habits, Profile)

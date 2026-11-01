@@ -13,9 +13,6 @@ import {
   User,
   LogOut,
   Loader2,
-  Bell,
-  Trophy,
-  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME } from '@/config/brand'
@@ -25,10 +22,6 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Groups', href: '/dashboard/groups', icon: Users },
   { name: 'Habits', href: '/dashboard/habits', icon: Target },
-  { name: 'Activity Feed', href: '/dashboard/activity', icon: Bell },
-  { name: 'Leaderboard', href: '/dashboard/leaderboard', icon: Trophy },
-  { name: 'Financial Ledger', href: '/dashboard/ledger', icon: Wallet },
-  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 

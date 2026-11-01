@@ -23,17 +23,18 @@ The product is a social habit-accountability app. The UI must make three things 
 3. Do not change database schema, RLS, auth, money logic, or API contracts during the visual UI phase.
 4. Do not replace existing user changes. Read the file before editing it.
 5. Do not use placeholder content when real data is available.
-6. Do not show fake metrics such as hard-coded streaks, completion rates, or member counts.
-7. Use the existing `brand.ts` and `APP_NAME`; never hard-code the product name in new components.
-8. Keep the existing dark theme and light theme support.
-9. Every interactive control must work with keyboard input.
-10. Every page must have loading, empty, error, and success states where the page performs data work.
-11. Mobile target: 375px wide. Desktop target: 1280px wide.
-12. Do not use horizontal scrolling for the main page.
-13. Do not put cards inside cards.
-14. Do not use giant hero sections or marketing copy. The first screen must be the usable product.
-15. Use lucide-react icons already installed. Do not draw custom SVG icons.
-16. Run validation after every phase. Do not continue after a failed validation.
+6. Keep Activity Feed, Leaderboard, and Financial Ledger out of the primary navigation. They are intentionally deferred to keep the first version focused.
+7. Do not show fake metrics such as hard-coded streaks, completion rates, or member counts.
+8. Use the existing `brand.ts` and `APP_NAME`; never hard-code the product name in new components.
+9. Keep the existing dark theme and light theme support.
+10. Every interactive control must work with keyboard input.
+11. Every page must have loading, empty, error, and success states where the page performs data work.
+12. Mobile target: 375px wide. Desktop target: 1280px wide.
+13. Do not use horizontal scrolling for the main page.
+14. Do not put cards inside cards.
+15. Do not use giant hero sections or marketing copy. The first screen must be the usable product.
+16. Use lucide-react icons already installed. Do not draw custom SVG icons.
+17. Run validation after every phase. Do not continue after a failed validation.
 
 ## Files In Scope
 
