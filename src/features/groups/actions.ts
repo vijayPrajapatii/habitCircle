@@ -36,35 +36,17 @@ export async function createGroup(formData: FormData) {
 
   const { name, description, penalty_amount, currency, timezone, max_members } = result.data
 
-  const { data: group, error: groupError } = await supabase
-    .from('groups')
-    .insert({
-      name,
-      description,
-      penalty_amount,
-      currency,
-      timezone,
-      max_members,
-      created_by: user.id,
-    })
-    .select()
-    .single()
+  const { data: group, error: groupError } = await supabase.rpc('create_group_with_owner', {
+    p_name: name,
+    p_description: description,
+    p_penalty_amount: penalty_amount,
+    p_currency: currency,
+    p_timezone: timezone,
+    p_max_members: max_members,
+  })
 
   if (groupError) {
     return { error: groupError.message }
-  }
-
-  // Add creator as owner
-  const { error: memberError } = await supabase
-    .from('group_members')
-    .insert({
-      group_id: group.id,
-      user_id: user.id,
-      role: 'owner',
-    })
-
-  if (memberError) {
-    return { error: memberError.message }
   }
 
   return { group }

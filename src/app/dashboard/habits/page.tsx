@@ -4,10 +4,24 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Target, Loader2, CheckCircle2, Calendar, Users } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { createHabit, getUserHabits } from '@/features/habits/actions'
+import { Plus, Target, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
+
+interface Group {
+  id: string
+  name: string
+}
 
 interface Habit {
   id: string
@@ -23,7 +37,11 @@ interface Habit {
 export default function HabitsPage() {
   const router = useRouter()
   const [habits, setHabits] = useState<Habit[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -37,9 +55,54 @@ export default function HabitsPage() {
         return
       }
 
-      setLoading(false)
+      Promise.all([
+        supabase
+          .from('group_members' as any)
+          .select('groups (id, name)')
+          .eq('user_id', user.id)
+          .is('left_at', null),
+        getUserHabits(),
+      ]).then(([groupsResult, habitsResult]) => {
+        if (groupsResult.error) {
+          setError(groupsResult.error.message)
+        } else {
+          const userGroups = (groupsResult.data as any[] | null)
+            ?.map((membership) => membership.groups)
+            .filter(Boolean) || []
+          setGroups(userGroups)
+        }
+
+        if (habitsResult.error) {
+          setError(habitsResult.error)
+        } else {
+          setHabits((habitsResult.habits || []) as unknown as Habit[])
+        }
+        setLoading(false)
+      })
     })
   }, [router])
+
+  const handleCreateHabit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+
+    const result = await createHabit(new FormData(event.currentTarget))
+    if (result.error) {
+      setError(result.error)
+      setSaving(false)
+      return
+    }
+
+    const refreshed = await getUserHabits()
+    if (refreshed.error) {
+      setError(refreshed.error)
+    } else {
+      setHabits((refreshed.habits || []) as unknown as Habit[])
+      setDialogOpen(false)
+    }
+    setSaving(false)
+  }
 
   if (loading) {
     return <div className="p-6"><Loader2 className="h-6 w-6 animate-spin" /></div>
@@ -49,25 +112,90 @@ export default function HabitsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">My Habits</h1>
-        <Button>
+        <Button onClick={() => { setError(null); setDialogOpen(true) }} disabled={!groups.length}>
           <Plus className="h-4 w-4 mr-2" />
           New Habit
         </Button>
       </div>
 
-      <Card className="border-dashed">
-        <CardContent className="py-12 text-center">
-          <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
-          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            Create your first habit to start building consistency.
-          </p>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Habit
-          </Button>
-        </CardContent>
-      </Card>
+      {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+
+      {!habits.length ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Create your first habit to start building consistency.
+            </p>
+            <Button onClick={() => { setError(null); setDialogOpen(true) }} disabled={!groups.length}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Habit
+            </Button>
+            {!groups.length && <p className="mt-3 text-sm text-muted-foreground">Create or join a group first.</p>}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {habits.map((habit) => (
+            <Card key={habit.id}>
+              <CardContent className="p-4">
+                <h3 className="font-semibold">{habit.name}</h3>
+                <p className="text-sm text-muted-foreground">{habit.group?.name}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {habit.schedule?.frequency} · target {habit.schedule?.target_quantity}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create habit</DialogTitle>
+            <DialogDescription>Choose the group and the schedule for this habit.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateHabit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="habit-name">Name</Label>
+              <Input id="habit-name" name="name" placeholder="Morning walk" required maxLength={100} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="habit-group">Group</Label>
+              <select id="habit-group" name="group_id" className="flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm" required>
+                <option value="">Select a group</option>
+                {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="habit-frequency">Frequency</Label>
+                <select id="habit-frequency" name="frequency" defaultValue="daily" className="flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quantity">Quantity</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="habit-target">Target</Label>
+                <Input id="habit-target" name="target_quantity" type="number" min="1" defaultValue="1" required />
+              </div>
+            </div>
+            <input type="hidden" name="timezone" value="UTC" />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>
+                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create habit
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
