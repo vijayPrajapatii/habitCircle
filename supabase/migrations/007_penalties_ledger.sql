@@ -1,6 +1,18 @@
 -- 007_penalties_ledger.sql
 -- Penalties, allocations, ledger entries, and payments
 
+-- Payments table (must come before ledger_entries which references it)
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references public.profiles(id) on delete cascade,
+  receiver_id uuid not null references public.profiles(id) on delete cascade,
+  group_id uuid not null references public.groups(id) on delete cascade,
+  amount bigint not null check (amount > 0),
+  status text not null check (status in ('pending', 'confirmed', 'rejected')) default 'pending',
+  evidence_path text,
+  created_at timestamptz not null default now()
+);
+
 -- Penalties table - one penalty per occurrence
 create table if not exists public.penalties (
   id uuid primary key default gen_random_uuid(),
@@ -22,6 +34,28 @@ create table if not exists public.penalty_allocations (
   share bigint not null check (share > 0),
   primary key (penalty_id, receiver_id)
 );
+
+-- Penalty allocations trigger to enforce sum equals penalty amount
+create or replace function public.enforce_penalty_allocation_sum()
+returns trigger language plpgsql as $$
+declare
+  total_share bigint;
+  penalty_amount bigint;
+begin
+  select sum(share) into total_share
+  from public.penalty_allocations
+  where penalty_id = NEW.penalty_id;
+
+  select amount into penalty_amount
+  from public.penalties
+  where id = NEW.penalty_id;
+
+  if total_share != penalty_amount then
+    raise exception 'Penalty allocations must sum to penalty amount';
+  end if;
+
+  return NEW;
+end $$;
 
 -- Ledger Entries - append only
 create table if not exists public.ledger_entries (
@@ -58,41 +92,7 @@ create trigger prevent_ledger_delete_trigger
   before delete on public.ledger_entries
   for each row execute function public.prevent_ledger_delete();
 
--- Payments
-create table if not exists public.payments (
-  id uuid primary key default gen_random_uuid(),
-  sender_id uuid not null references public.profiles(id) on delete cascade,
-  receiver_id uuid not null references public.profiles(id) on delete cascade,
-  group_id uuid not null references public.groups(id) on delete cascade,
-  amount bigint not null check (amount > 0),
-  status text not null check (status in ('pending', 'confirmed', 'rejected')) default 'pending',
-  evidence_path text,
-  created_at timestamptz not null default now()
-);
-
--- Penalty allocations trigger to enforce sum equals penalty amount
-create or replace function public.enforce_penalty_allocation_sum()
-returns trigger language plpgsql as $$
-declare
-  total_share bigint;
-  penalty_amount bigint;
-begin
-  select sum(share) into total_share
-  from public.penalty_allocations
-  where penalty_id = NEW.penalty_id;
-
-  select amount into penalty_amount
-  from public.penalties
-  where id = NEW.penalty_id;
-
-  if total_share != penalty_amount then
-    raise exception 'Penalty allocations must sum to penalty amount';
-  end if;
-
-  return NEW;
-end $$;
-
--- Payments must reference a pending penalty
+-- Payments must reference a pending penalty (for ledger entries linking to payments)
 create or replace function public.validate_payment_penalty()
 returns trigger language plpgsql as $$
 declare
