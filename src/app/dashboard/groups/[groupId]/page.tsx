@@ -91,7 +91,7 @@ export default function GroupPage() {
       // Active members only
       const activeMembers = groupData.members
         .filter(m => !m.left_at)
-        .map(m => ({
+        .map((m: any) => ({
           id: m.id,
           user_id: m.user_id,
           role: m.role,
