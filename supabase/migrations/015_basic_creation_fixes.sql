@@ -88,6 +88,21 @@ create policy "habit_occurrences_insert_member"
     )
   );
 
+drop policy if exists "habit_occurrences_select_member" on public.habit_occurrences;
+create policy "habit_occurrences_select_member"
+  on public.habit_occurrences for select
+  using (
+    exists (
+      select 1
+      from public.habit_schedules hs
+      join public.habits h on h.id = hs.habit_id
+      join public.group_members gm on gm.group_id = h.group_id
+      where hs.id = habit_occurrences.schedule_id
+        and gm.user_id = auth.uid()
+        and gm.left_at is null
+    )
+  );
+
 -- A check-in must belong to the authenticated member.
 drop policy if exists "habit_checkins_insert_own" on public.habit_checkins;
 create policy "habit_checkins_insert_own" on public.habit_checkins for insert with check (
@@ -100,6 +115,20 @@ create policy "habit_checkins_insert_own" on public.habit_checkins for insert wi
     join public.group_members gm on gm.group_id = h.group_id
     where ho.id = habit_checkins.occurrence_id
       and h.created_by = auth.uid()
+      and gm.user_id = auth.uid()
+      and gm.left_at is null
+  )
+);
+
+drop policy if exists "habit_checkins_select_member" on public.habit_checkins;
+create policy "habit_checkins_select_member" on public.habit_checkins for select using (
+  exists (
+    select 1
+    from public.habit_occurrences ho
+    join public.habit_schedules hs on hs.id = ho.schedule_id
+    join public.habits h on h.id = hs.habit_id
+    join public.group_members gm on gm.group_id = h.group_id
+    where ho.id = habit_checkins.occurrence_id
       and gm.user_id = auth.uid()
       and gm.left_at is null
   )
