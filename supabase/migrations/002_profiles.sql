@@ -39,16 +39,35 @@ create trigger profiles_updated_at
   for each row execute function public.handle_updated_at();
 
 -- Function to create profile on signup
+-- Fixed: removed set search_path which was blocking auth schema access
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger language plpgsql security definer as $$
+declare
+  v_username text;
+  v_timezone text;
 begin
+  -- Get values from user_metadata (set during signup via options.data)
+  -- Fallback to raw_user_meta_data (legacy) or generate default
+  v_username := coalesce(
+    new.user_metadata->>'username',
+    new.raw_user_meta_data->>'username',
+    'user_' || substr(new.id::text, 1, 8)
+  );
+  v_timezone := coalesce(
+    new.user_metadata->>'timezone',
+    new.raw_user_meta_data->>'timezone',
+    'UTC'
+  );
+
+  -- Validate username format to avoid check constraint violation
+  if v_username !~ '^[a-z0-9_]{3,30}$' then
+    v_username := 'user_' || substr(new.id::text, 1, 8);
+  end if;
+
   insert into public.profiles (id, username, timezone)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'username', 'user_' || substr(new.id::text, 1, 8)),
-    coalesce(new.raw_user_meta_data->>'timezone', 'UTC')
-  )
+  values (new.id, v_username, v_timezone)
   on conflict (id) do nothing;
+
   return new;
 end $$;
 

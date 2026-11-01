@@ -26,24 +26,28 @@ export async function signUp(formData: FormData) {
 
   const { email, password, username } = result.data
 
-  const { error } = await supabase.auth.signUp({
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: { username },
+      data: { username, timezone: 'UTC' }, // Stored in user_metadata
       emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login?message=Check your email to confirm your account`,
     },
   })
 
-  if (error) {
+  if (signUpError) {
     // Return user-friendly error messages for common issues
-    if (error.message.toLowerCase().includes('user already registered') || error.message.toLowerCase().includes('email already registered')) {
+    if (signUpError.message.toLowerCase().includes('user already registered') || signUpError.message.toLowerCase().includes('email already registered')) {
       return { error: 'An account with this email already exists. Please sign in or use a different email.' }
     }
-    if (error.message.toLowerCase().includes('rate limit') || error.message.toLowerCase().includes('too many')) {
+    if (signUpError.message.toLowerCase().includes('rate limit') || signUpError.message.toLowerCase().includes('too many')) {
       return { error: 'Too many sign-up attempts. Please check your email for a confirmation link, or wait a few minutes before trying again.' }
     }
-    return { error: error.message }
+    // Check for constraint violations
+    if (signUpError.message.toLowerCase().includes('constraint') || signUpError.message.toLowerCase().includes('violates')) {
+      return { error: 'Unable to create account. Please try a different username or email.' }
+    }
+    return { error: signUpError.message }
   }
 
   return { success: true }
