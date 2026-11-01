@@ -42,3 +42,6 @@ yarn-error.log*
 /test-results/
 /playwright-report/
 client_secret_*.json
+
+# Mockup/preview images
+images/

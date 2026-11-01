@@ -1,7 +1,5 @@
 'use client'
 
-import { Sidebar } from '@/components/shell/sidebar'
-import { BottomNav } from '@/components/shell/bottom-nav'
 import { Target, Flame, Trophy, Users, Calendar, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -95,120 +93,112 @@ function HabitRow({
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen flex">
-      <Sidebar />
-      <div className="flex-1 flex flex-col lg:pl-0">
-        <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6">
-          <div className="space-y-6">
-            {/* Welcome Header */}
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Welcome back!</h1>
-              <p className="text-muted-foreground mt-1">Here's your habit overview for today.</p>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                title="Today's Habits"
-                value="3"
-                description="2 completed, 1 pending"
-                icon={Target}
-              />
-              <StatCard
-                title="Current Streak"
-                value="7"
-                description="days on fire"
-                icon={Flame}
-              />
-              <StatCard
-                title="This Week"
-                value="85%"
-                description="completion rate"
-                icon={Trophy}
-              />
-              <StatCard
-                title="Active Groups"
-                value="2"
-                description="groups you're in"
-                icon={Users}
-              />
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-base">Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Check In Now</span>
-                  </button>
-                  <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-                    <Target className="h-5 w-5 text-muted-foreground" />
-                    <span>View My Habits</span>
-                  </button>
-                  <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                    <span>Browse Groups</span>
-                  </button>
-                  <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
-                    <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
-                    <span>Review Activity</span>
-                  </button>
-                </CardContent>
-              </Card>
-
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-base">Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <ActivityItem
-                    user="You"
-                    action="completed"
-                    habit="Morning Run"
-                    time="2 hours ago"
-                  />
-                  <ActivityItem
-                    user="Alex"
-                    action="verified your"
-                    habit="Read 20 pages"
-                    time="4 hours ago"
-                  />
-                  <ActivityItem
-                    user="Sam"
-                    action="joined"
-                    habit="Weekly Workout"
-                    time="1 day ago"
-                  />
-                  <div className="text-center pt-2">
-                    <button className="text-sm text-primary hover:underline">View all activity</button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Upcoming Habits */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle>Upcoming Habits</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <HabitRow name="Morning Run" frequency="Daily" time="6:00 AM" status="pending" />
-                  <HabitRow name="Read 20 pages" frequency="Daily" time="9:00 PM" status="completed" />
-                  <HabitRow name="Weekly Workout" frequency="Weekly (Mon/Wed/Fri)" time="7:00 PM" status="pending" />
-                  <HabitRow name="Meditation" frequency="Daily" time="8:00 AM" status="pending" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
+    <div className="space-y-6">
+      {/* Welcome Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back!</h1>
+        <p className="text-muted-foreground mt-1">Here's your habit overview for today.</p>
       </div>
-      <BottomNav />
+
+      {/* Stats Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Today's Habits"
+          value="3"
+          description="2 completed, 1 pending"
+          icon={Target}
+        />
+        <StatCard
+          title="Current Streak"
+          value="7"
+          description="days on fire"
+          icon={Flame}
+        />
+        <StatCard
+          title="This Week"
+          value="85%"
+          description="completion rate"
+          icon={Trophy}
+        />
+        <StatCard
+          title="Active Groups"
+          value="2"
+          description="groups you're in"
+          icon={Users}
+        />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
+              <Calendar className="h-5 w-5 text-primary" />
+              <span className="font-medium">Check In Now</span>
+            </button>
+            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
+              <Target className="h-5 w-5 text-muted-foreground" />
+              <span>View My Habits</span>
+            </button>
+            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <span>Browse Groups</span>
+            </button>
+            <button className="w-full justify-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors text-left">
+              <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
+              <span>Review Activity</span>
+            </button>
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ActivityItem
+              user="You"
+              action="completed"
+              habit="Morning Run"
+              time="2 hours ago"
+            />
+            <ActivityItem
+              user="Alex"
+              action="verified your"
+              habit="Read 20 pages"
+              time="4 hours ago"
+            />
+            <ActivityItem
+              user="Sam"
+              action="joined"
+              habit="Weekly Workout"
+              time="1 day ago"
+            />
+            <div className="text-center pt-2">
+              <button className="text-sm text-primary hover:underline">View all activity</button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Upcoming Habits */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle>Upcoming Habits</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <HabitRow name="Morning Run" frequency="Daily" time="6:00 AM" status="pending" />
+            <HabitRow name="Read 20 pages" frequency="Daily" time="9:00 PM" status="completed" />
+            <HabitRow name="Weekly Workout" frequency="Weekly (Mon/Wed/Fri)" time="7:00 PM" status="pending" />
+            <HabitRow name="Meditation" frequency="Daily" time="8:00 AM" status="pending" />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
