@@ -156,7 +156,7 @@ export default function HabitsPage() {
   return (
     <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl sm:text-2xl font-bold truncate">My Habits</h1>
+        <h1 className="text-xl sm:text-2xl font-bold truncate">Habits</h1>
         <Button onClick={() => { setError(null); setDialogOpen(true) }} disabled={!groups.length} className="flex-shrink-0">
           <Plus className="h-4 w-4 mr-2" />
           <span className="hidden sm:inline">New Habit</span>
@@ -228,7 +228,7 @@ export default function HabitsPage() {
                         : 'Check in'}
                   </Button>
                   <span className="text-xs text-muted-foreground flex-shrink-0">
-                    Check-ins today: {habit.checkins.length}
+                    Check-ins: {habit.checkins.length}
                   </span>
                 </div>
                 {habit.checkins.length > 0 && (
@@ -247,7 +247,7 @@ export default function HabitsPage() {
                 )}
                 {habit.checkins.length === 0 && (
                   <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
-                    No check-ins yet today.
+                    No check-ins recorded for this period.
                   </p>
                 )}
               </CardContent>

@@ -72,7 +72,6 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
     .from('habit_occurrences' as any)
     .select('id, schedule_id, period_start, period_end, status')
     .in('schedule_id', scheduleIds)
-    .gte('period_end', new Date().toISOString())
     .order('period_start', { ascending: false })
 
   const occurrenceIds = (occurrences as any[] | null)?.map(occurrence => occurrence.id) || []
