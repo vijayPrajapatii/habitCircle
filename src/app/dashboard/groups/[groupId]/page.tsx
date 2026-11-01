@@ -229,8 +229,8 @@ export default function GroupPage() {
               <Copy className="h-4 w-4 mr-2" />
               Copy Invite Link
             </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Or share this link: {process.env.NEXT_PUBLIC_SITE_URL}/invite/{"{groupId}"}
+            <<p className="text-xs text-muted-foreground mt-2">
+              Or share this link: {`${process.env.NEXT_PUBLIC_SITE_URL}/invite/[groupId]`}
             </p>
           </div>
         </CardContent>
