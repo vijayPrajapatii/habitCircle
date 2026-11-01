@@ -286,7 +286,7 @@ export default function HabitsPage() {
                       onChange={(e) => setFormData({ ...formData, target_quantity: parseInt(e.target.value) || 1 })}
                     />
                   </div>
-                </div>
+                </>
               )}
 
               <Button onClick={handleCreateHabit} disabled={!formData.group_id || !formData.name || loadingGroups}>
