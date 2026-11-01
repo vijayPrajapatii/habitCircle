@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Bell, CheckCircle2, UserPlus, Flame, Target, Calendar } from 'lucide-react'
+import { Bell, CheckCircle2, Calendar } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -32,7 +32,6 @@ export default function ActivityPage() {
         return
       }
 
-      // Find user's groups
       const { data: userGroups } = await supabase
         .from('group_members' as any)
         .select('group_id')
@@ -46,7 +45,6 @@ export default function ActivityPage() {
         return
       }
 
-      // Fetch habits and their recent check-ins across these groups
       const { data: habitsData } = await supabase
         .from('habits' as any)
         .select(`
@@ -88,11 +86,10 @@ export default function ActivityPage() {
         }
       }
 
-      // Map to activity events
       const events: ActivityEvent[] = checkinsList.map(c => ({
         id: c.id,
         type: 'checkin',
-        title: `${c.profile?.username || 'Group member'} completed a check-in`,
+        title: `${c.profile?.username || 'Member'} checked in`,
         subtitle: `Status: ${c.status}`,
         timestamp: new Date(c.created_at).toLocaleString(undefined, {
           month: 'short',
@@ -117,14 +114,14 @@ export default function ActivityPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div>
-          <Skeleton className="h-8 w-44" />
-          <Skeleton className="h-4 w-64 mt-1" />
+          <Skeleton className="h-7 w-36 sm:h-8 sm:w-44" />
+          <Skeleton className="h-4 w-48 sm:w-64 mt-1" />
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            <Skeleton key={i} className="h-14 sm:h-16 w-full rounded-lg" />
           ))}
         </div>
       </div>
@@ -132,26 +129,26 @@ export default function ActivityPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Activity Feed</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1">
-          Live stream of accountability check-ins, commitments, and peer updates across your groups.
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Activity Feed</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+          Live stream of check-ins and peer accountability updates across your circles.
         </p>
       </div>
 
       {!activities.length ? (
         <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No recent activity</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto text-sm">
+          <CardContent className="py-10 sm:py-12 text-center px-4">
+            <Bell className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-base sm:text-lg font-semibold mb-1.5">No recent activity</h3>
+            <p className="text-muted-foreground mb-5 max-w-sm mx-auto text-xs sm:text-sm leading-relaxed">
               When members in your accountability circles check in or achieve streaks, their milestones will appear here in real time.
             </p>
-            <div className="flex justify-center gap-3">
+            <div className="flex justify-center">
               <Link
                 href="/dashboard/habits"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 Submit a Check-in
@@ -161,29 +158,29 @@ export default function ActivityPage() {
         </Card>
       ) : (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Recent Feed</CardTitle>
+          <CardHeader className="p-3.5 sm:p-4 pb-2 sm:pb-3">
+            <CardTitle className="text-sm sm:text-base">Recent Feed</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="p-3.5 sm:p-4 pt-0 space-y-2">
             {activities.map(event => (
               <div
                 key={event.id}
-                className="flex items-center justify-between p-3.5 rounded-lg border bg-card hover:bg-muted/40 transition-colors"
+                className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg border bg-card hover:bg-muted/40 transition-colors gap-2"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="h-5 w-5" />
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="h-4 w-4" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{event.title}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                      <Calendar className="h-3 w-3" />
-                      {event.timestamp} • {event.subtitle}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-xs sm:text-sm truncate">{event.title}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                      <Calendar className="h-3 w-3 flex-shrink-0" />
+                      <span>{event.timestamp} • {event.subtitle}</span>
                     </p>
                   </div>
                 </div>
 
-                <Badge variant={event.badgeVariant} className="flex-shrink-0 text-xs">
+                <Badge variant={event.badgeVariant} className="flex-shrink-0 text-[10px] sm:text-xs py-0.5 px-1.5">
                   {event.badgeText}
                 </Badge>
               </div>

@@ -15,7 +15,6 @@ import {
   X,
   User,
   LogOut,
-  Menu,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME } from '@/config/brand'
@@ -31,10 +30,25 @@ const mainNavigation = [
   { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const [isOpen, setIsOpen] = useState(false)
+  const [internalIsOpen, setInternalIsOpen] = useState(false)
+  const isDrawerOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen
+
+  const closeDrawer = () => {
+    if (onClose) {
+      onClose()
+    } else {
+      setInternalIsOpen(false)
+    }
+  }
+
   const [userName, setUserName] = useState('User')
   const [userEmail, setUserEmail] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -98,33 +112,33 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && (
+      {isDrawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
-          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
+          onClick={closeDrawer}
           aria-hidden="true"
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar / Drawer */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200 ease-in-out bg-card border-r border-border flex flex-col lg:static lg:-translate-x-0',
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transform transition-transform duration-200 ease-in-out bg-card border-r border-border flex flex-col lg:static lg:w-64 lg:translate-x-0',
+          isDrawerOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         )}
         aria-label="Main navigation"
       >
         {/* Brand Header */}
         <div className="flex h-16 items-center justify-between px-5 border-b border-border">
-          <Link href="/dashboard" className="font-bold text-xl text-foreground flex items-center gap-2">
+          <Link href="/dashboard" onClick={closeDrawer} className="font-bold text-xl text-foreground flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-base">
               H
             </div>
             <span>{APP_NAME}</span>
           </Link>
           <button
-            className="lg:hidden p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
-            onClick={() => setIsOpen(false)}
+            className="lg:hidden p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center"
+            onClick={closeDrawer}
             aria-label="Close sidebar"
           >
             <X className="h-5 w-5" />
@@ -143,9 +157,9 @@ export function Sidebar() {
                 <li key={item.name}>
                   <Link
                     href={item.href}
-                    onClick={() => setIsOpen(false)}
+                    onClick={closeDrawer}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[42px]',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] touch-manipulation',
                       isActive
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -165,8 +179,8 @@ export function Sidebar() {
         <div className="p-3 border-t border-border space-y-1">
           <Link
             href="/dashboard/profile"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors"
+            onClick={closeDrawer}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors min-h-[44px]"
           >
             <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
               {userName.slice(0, 2).toUpperCase()}
@@ -179,8 +193,8 @@ export function Sidebar() {
 
           <Link
             href="/dashboard/settings"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            onClick={closeDrawer}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors min-h-[40px]"
           >
             <Settings className="h-4 w-4" />
             <span>Settings</span>
@@ -188,23 +202,13 @@ export function Sidebar() {
 
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors w-full text-left"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors w-full text-left min-h-[40px] touch-manipulation"
           >
             <LogOut className="h-4 w-4" />
             <span>Sign Out</span>
           </button>
         </div>
       </aside>
-
-      {/* Floating mobile menu trigger button */}
-      <button
-        className="lg:hidden fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 p-3 rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90 active:scale-95 transition-all"
-        onClick={() => setIsOpen(true)}
-        aria-label="Open menu"
-        aria-expanded={isOpen}
-      >
-        <Menu className="h-6 w-6" />
-      </button>
     </>
   )
 }

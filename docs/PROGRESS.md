@@ -72,11 +72,27 @@ HabitCircle has evolved from a functional prototype into an end-to-end, startup-
 ### 9. Startup Landing Page (`/`)
 - ✅ High-converting fintech/SaaS landing page with hero, value proposition, feature grid, trust badges, and navigation CTA.
 
-### 10. Quality & Reliability
+### 10. Mobile Responsiveness & Phone Compatibility (375px+)
+- ✅ **Mobile Navigation Suite**:
+  - `MobileTopBar`: Clean sticky header with brand mark, notification shortcut, and mobile drawer trigger.
+  - `Sidebar` Drawer: Sliding responsive drawer with dimmed backdrop and ESC key listener; eliminates the intrusive floating button that previously overlapped cards.
+  - `BottomNav`: Fixed 5-tab navigation bar with touch optimization, active indicator states, safe area insets (`env(safe-area-inset-bottom)`), and responsive labels.
+- ✅ **Touch ergonomics & iOS polish**:
+  - Form controls set to minimum 16px font-size on `<640px` viewports, preventing iOS Safari auto-zoom on input focus.
+  - Minimum 44px touch targets on all interactive buttons and navigation elements.
+  - `-webkit-tap-highlight-color: transparent` and `overflow-x: hidden` preventing awkward horizontal shifts.
+- ✅ **Viewport Optimization**:
+  - Dashboard stats dynamically wrap (3rd metric spans 2 columns on 2-col phone screens).
+  - Modals and dialogs adapt cleanly to `w-[calc(100%-1.5rem)]` on mobile.
+  - Leaderboard podium scales to a compact 3-column mobile layout.
+  - Ledger zero-custody banner and group detail action buttons stack gracefully.
+
+### 11. Quality & Reliability
 - ✅ Error Boundary wrapper (`src/components/error-boundary.tsx`) preventing unhandled UI crashes.
 - ✅ Toast system active via `<Toaster />` in `src/components/providers.tsx`.
 - ✅ Responsive testing across mobile (375px) and desktop (1280px+).
 - ✅ `pnpm typecheck` passed (0 errors).
+- ✅ Vitest unit suite passed (45/45 tests green).
 - ✅ `pnpm build` passed (all routes compiled cleanly).
 
 ---

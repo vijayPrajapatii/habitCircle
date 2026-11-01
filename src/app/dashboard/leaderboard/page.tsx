@@ -1,12 +1,11 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Trophy, Medal, Target, CheckCircle2, Flame, Users, Sparkles } from 'lucide-react'
+import { Trophy, Medal, Sparkles } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { APP_NAME } from '@/config/brand'
 
 interface LeaderboardMember {
   userId: string
@@ -28,7 +27,6 @@ export default function LeaderboardPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setCurrentUserId(user.id)
 
-      // Fetch user's groups
       const { data: memberships } = await supabase
         .from('group_members' as any)
         .select('group_id')
@@ -42,7 +40,6 @@ export default function LeaderboardPage() {
         return
       }
 
-      // Fetch all members in these groups
       const { data: allMembers } = await supabase
         .from('group_members' as any)
         .select(`
@@ -61,13 +58,11 @@ export default function LeaderboardPage() {
         }
       }
 
-      // Fetch habits in these groups
       const { data: habits } = await supabase
         .from('habits' as any)
         .select('id, created_by')
         .in('group_id', groupIds)
 
-      // Fetch verified check-ins
       const { data: checkins } = await supabase
         .from('habit_checkins' as any)
         .select('id, profile_id, status')
@@ -93,10 +88,8 @@ export default function LeaderboardPage() {
         })
       }
 
-      // Sort by total check-ins, then consistency
       memberStats.sort((a, b) => b.totalCheckins - a.totalCheckins || b.consistencyScore - a.consistencyScore)
 
-      // Assign ranks
       const ranked = memberStats.map((m, idx) => ({ ...m, rank: idx + 1 }))
       setLeaders(ranked)
       setLoading(false)
@@ -111,134 +104,151 @@ export default function LeaderboardPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div>
-          <Skeleton className="h-8 w-44" />
-          <Skeleton className="h-4 w-64 mt-1" />
+          <Skeleton className="h-7 w-36 sm:h-8 sm:w-44" />
+          <Skeleton className="h-4 w-48 sm:w-64 mt-1" />
         </div>
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+        <div className="space-y-2.5">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Leaderboard</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Leaderboard</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
           Consistency & habit execution across your accountability circles.
         </p>
       </div>
 
-      {/* Philosophy banner: Pure consistency, not money */}
-      <div className="flex items-center gap-2 p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs sm:text-sm text-foreground">
+      {/* Fair play banner */}
+      <div className="flex items-center gap-2 p-2.5 sm:p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs sm:text-sm text-foreground">
         <Sparkles className="h-4 w-4 text-amber-500 flex-shrink-0" />
-        <span>
-          <strong>Fair Play Rule:</strong> Rankings are strictly based on consistency and completed check-ins. Financial penalty data is never used to rank members.
+        <span className="text-[11px] sm:text-xs">
+          <strong>Fair Play Rule:</strong> Rankings are strictly based on consistency and completed check-ins. Money is never used to rank members.
         </span>
       </div>
 
       {!leaders.length ? (
         <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No rankings yet</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto text-sm">
-              Rankings will populate as members commit to habits and record verified check-ins in your groups.
+          <CardContent className="py-10 sm:py-12 text-center px-4">
+            <Trophy className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-base sm:text-lg font-semibold mb-1.5">No rankings yet</h3>
+            <p className="text-muted-foreground mb-4 max-w-sm mx-auto text-xs sm:text-sm">
+              Rankings will populate as members commit to habits and record verified check-ins in your circles.
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {/* Top 3 Podium Cards if at least 2 members */}
+          {/* Top 3 Podium (scaled for 375px+ screens) */}
           {leaders.length >= 2 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-              {leaders.slice(0, 3).map((leader, i) => (
-                <Card
-                  key={leader.userId}
-                  className={`text-center relative overflow-hidden ${
-                    leader.rank === 1
-                      ? 'border-amber-500/50 bg-amber-500/5 sm:order-2 order-1 col-span-2 sm:col-span-1'
-                      : leader.rank === 2
-                        ? 'border-slate-400/40 sm:order-1 order-2'
-                        : 'border-amber-700/40 sm:order-3 order-3'
-                  }`}
-                >
-                  <CardContent className="p-4 pt-6">
-                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 mb-2">
-                      {leader.rank === 1 ? (
-                        <Trophy className="h-5 w-5 text-amber-500" />
-                      ) : (
-                        <Medal className="h-5 w-5 text-muted-foreground" />
-                      )}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-1">
+              {/* Rank 2 */}
+              {leaders[1] && (
+                <Card className="text-center border-slate-400/30 bg-card overflow-hidden">
+                  <CardContent className="p-2 sm:p-4 pt-4 sm:pt-6">
+                    <div className="inline-flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-slate-400/10 text-slate-400 mb-1">
+                      <Medal className="h-4 w-4 sm:h-5 sm:w-5" />
                     </div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Rank #{leader.rank}
+                    <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase">#2</p>
+                    <p className="font-semibold text-xs sm:text-sm mt-0.5 truncate">
+                      {leaders[1].username}
                     </p>
-                    <p className="font-bold text-base mt-1 truncate">
-                      {leader.username}
-                      {leader.userId === currentUserId && ' (You)'}
-                    </p>
-                    <div className="mt-3 pt-2 border-t flex justify-around text-xs text-muted-foreground">
-                      <div>
-                        <span className="font-bold text-foreground text-sm block">{leader.totalCheckins}</span>
-                        check-ins
-                      </div>
-                      <div>
-                        <span className="font-bold text-foreground text-sm block">{leader.totalHabits}</span>
-                        habits
-                      </div>
+                    <div className="mt-2 pt-1.5 border-t text-[10px] sm:text-xs text-muted-foreground">
+                      <span className="font-bold text-foreground block text-xs sm:text-sm">{leaders[1].totalCheckins}</span>
+                      check-ins
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              )}
+
+              {/* Rank 1 */}
+              {leaders[0] && (
+                <Card className="text-center border-amber-500/40 bg-amber-500/5 -mt-1 sm:-mt-2 overflow-hidden shadow-sm">
+                  <CardContent className="p-2 sm:p-4 pt-4 sm:pt-6">
+                    <div className="inline-flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-500 mb-1">
+                      <Trophy className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold text-amber-500 uppercase">#1</p>
+                    <p className="font-bold text-xs sm:text-sm mt-0.5 truncate">
+                      {leaders[0].username}
+                    </p>
+                    <div className="mt-2 pt-1.5 border-t text-[10px] sm:text-xs text-muted-foreground">
+                      <span className="font-bold text-foreground block text-xs sm:text-sm">{leaders[0].totalCheckins}</span>
+                      check-ins
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Rank 3 */}
+              {leaders[2] ? (
+                <Card className="text-center border-amber-700/30 bg-card overflow-hidden">
+                  <CardContent className="p-2 sm:p-4 pt-4 sm:pt-6">
+                    <div className="inline-flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-amber-700/10 text-amber-700 mb-1">
+                      <Medal className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase">#3</p>
+                    <p className="font-semibold text-xs sm:text-sm mt-0.5 truncate">
+                      {leaders[2].username}
+                    </p>
+                    <div className="mt-2 pt-1.5 border-t text-[10px] sm:text-xs text-muted-foreground">
+                      <span className="font-bold text-foreground block text-xs sm:text-sm">{leaders[2].totalCheckins}</span>
+                      check-ins
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div />
+              )}
             </div>
           )}
 
-          {/* Full Rankings List */}
+          {/* Full Standings List */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between">
+            <CardHeader className="p-3.5 sm:p-4 pb-2 sm:pb-3">
+              <CardTitle className="text-sm sm:text-base flex items-center justify-between">
                 <span>Circle Standings</span>
                 <span className="text-xs text-muted-foreground font-normal">{leaders.length} members</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="p-3.5 sm:p-4 pt-0 space-y-2">
               {leaders.map(member => (
                 <div
                   key={member.userId}
-                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                  className={`flex items-center justify-between p-2.5 sm:p-3 rounded-lg border transition-colors gap-2 ${
                     member.userId === currentUserId ? 'bg-primary/5 border-primary/40' : 'bg-card hover:bg-muted/30'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-bold text-sm w-6 text-center text-muted-foreground">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <span className="font-bold text-xs sm:text-sm w-5 text-center text-muted-foreground flex-shrink-0">
                       #{member.rank}
                     </span>
-                    <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
+                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
                       {member.username.slice(0, 2)}
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-xs sm:text-sm truncate">
                         {member.username}
                         {member.userId === currentUserId && (
-                          <Badge variant="secondary" className="ml-2 text-[10px] py-0">You</Badge>
+                          <Badge variant="secondary" className="ml-1.5 text-[9px] sm:text-[10px] py-0 px-1">You</Badge>
                         )}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {member.totalHabits} {member.totalHabits === 1 ? 'active habit' : 'active habits'}
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        {member.totalHabits} {member.totalHabits === 1 ? 'habit' : 'habits'}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 flex-shrink-0">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold">{member.totalCheckins} check-ins</p>
-                      <p className="text-[11px] text-muted-foreground">{member.consistencyScore}% score</p>
-                    </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs sm:text-sm font-semibold">{member.totalCheckins} check-ins</p>
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground">{member.consistencyScore}% score</p>
                   </div>
                 </div>
               ))}

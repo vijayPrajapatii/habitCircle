@@ -30,7 +30,6 @@ import {
   Plus,
   Shield,
   CheckCircle2,
-  Calendar,
   Wallet,
 } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
@@ -61,23 +60,23 @@ interface Invitation {
 
 function GroupSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="space-y-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-7 w-40 sm:h-8 sm:w-48" />
+        <Skeleton className="h-4 w-60 sm:w-72" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-2.5 sm:gap-4 grid-cols-2 sm:grid-cols-3">
         {[1, 2, 3].map(i => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <Skeleton className="h-4 w-20 mb-2" />
-              <Skeleton className="h-6 w-16" />
+          <Card key={i} className={i === 3 ? 'col-span-2 sm:col-span-1' : ''}>
+            <CardContent className="p-3 sm:p-4">
+              <Skeleton className="h-3 w-16 mb-2" />
+              <Skeleton className="h-5 w-14" />
             </CardContent>
           </Card>
         ))}
       </div>
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <Skeleton className="h-5 w-32 mb-4" />
           <div className="space-y-2">
             {[1, 2].map(i => (
@@ -198,7 +197,7 @@ export default function GroupPage() {
       setGroupName(groupName.trim())
       setEditingName(false)
       toast({
-        title: 'Group renamed',
+        title: 'Circle renamed',
         description: `Name updated to "${groupName.trim()}"`,
       })
     }
@@ -219,7 +218,7 @@ export default function GroupPage() {
     }
 
     toast({
-      title: 'Group deleted',
+      title: 'Circle deleted',
       description: `${group?.name} has been removed.`,
     })
     router.push('/dashboard/groups')
@@ -246,11 +245,11 @@ export default function GroupPage() {
       const invitation = result.invitation as Invitation
       const link = `${window.location.origin}/invite/accept?token=${encodeURIComponent(invitation.link_token)}`
       setInviteLink(link)
-      setInviteSuccess('Invitation link generated! Share it with your friend.')
+      setInviteSuccess('Invite link ready!')
       setInviteEmail('')
       toast({
-        title: 'Invitation ready',
-        description: 'Invite link generated. You can now copy and share it.',
+        title: 'Invite link created',
+        description: 'Copy and send the token to your peer.',
       })
     }
     setInviting(false)
@@ -264,7 +263,7 @@ export default function GroupPage() {
         setTimeout(() => setCopiedLink(false), 2500)
         toast({
           title: 'Link copied',
-          description: 'Invite link copied to your clipboard.',
+          description: 'Shareable token copied to clipboard.',
         })
       } catch {
         toast({
@@ -295,7 +294,6 @@ export default function GroupPage() {
       return
     }
 
-    // Refresh habits
     const refreshed = await getGroupHabits(params.groupId)
     if (refreshed.habits) {
       setHabits(refreshed.habits)
@@ -307,8 +305,8 @@ export default function GroupPage() {
     setHabitFormTarget('1')
     setCreatingHabit(false)
     toast({
-      title: 'Habit created',
-      description: `"${habitFormName.trim()}" is now active in this group.`,
+      title: 'Habit added',
+      description: `"${habitFormName.trim()}" commitment active.`,
     })
   }
 
@@ -328,7 +326,7 @@ export default function GroupPage() {
       }
       toast({
         title: 'Checked in!',
-        description: "Today's check-in recorded successfully.",
+        description: "Today's check-in recorded.",
       })
     }
     setCheckingInHabitId(null)
@@ -349,7 +347,7 @@ export default function GroupPage() {
       setDeleteHabitId(null)
       toast({
         title: 'Habit removed',
-        description: 'Habit deleted from this group.',
+        description: 'Habit deleted from circle.',
       })
     }
     setDeletingHabit(false)
@@ -362,10 +360,12 @@ export default function GroupPage() {
   if (!group) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-12 text-center">
-          <h2 className="text-xl font-semibold mb-2">Group not found</h2>
-          <p className="text-muted-foreground mb-4">The group you are looking for may have been removed or you do not have permission to view it.</p>
-          <Button onClick={() => router.push('/dashboard/groups')}>Back to Groups</Button>
+        <CardContent className="py-10 text-center px-4">
+          <h2 className="text-lg font-semibold mb-2">Circle not found</h2>
+          <p className="text-muted-foreground text-xs sm:text-sm mb-4">
+            This circle may have been removed or you are not an active member.
+          </p>
+          <Button size="sm" onClick={() => router.push('/dashboard/groups')}>Back to Circles</Button>
         </CardContent>
       </Card>
     )
@@ -375,29 +375,29 @@ export default function GroupPage() {
   const currencySymbol = CURRENCY_SYMBOLS[group.currency] || group.currency
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+        <div className="min-w-0 flex-1">
           {editingName ? (
-            <form onSubmit={handleSaveName} className="flex items-center gap-2">
+            <form onSubmit={handleSaveName} className="flex items-center gap-2 max-w-md">
               <Input
-                aria-label="Group name"
+                aria-label="Circle name"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 disabled={savingName}
                 maxLength={100}
-                className="text-xl font-bold h-10 max-w-sm"
+                className="text-base sm:text-lg font-bold h-9"
                 autoFocus
               />
-              <Button type="submit" size="icon" aria-label="Save group name" disabled={savingName}>
+              <Button type="submit" size="icon" className="h-9 w-9 flex-shrink-0" disabled={savingName}>
                 {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Cancel"
+                className="h-9 w-9 flex-shrink-0"
                 onClick={() => { setGroupName(group.name); setNameError(''); setEditingName(false) }}
                 disabled={savingName}
               >
@@ -405,126 +405,128 @@ export default function GroupPage() {
               </Button>
             </form>
           ) : (
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{group.name}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">{group.name}</h1>
               {isOwner && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label="Edit group name"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    aria-label="Edit circle name"
                     onClick={() => setEditingName(true)}
                   >
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label="Delete group"
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                    aria-label="Delete circle"
                     onClick={() => { setDeleteError(''); setDeleteOpen(true) }}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
             </div>
           )}
-          {nameError && <p className="text-sm text-destructive mt-1" role="alert">{nameError}</p>}
-          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+          {nameError && <p className="text-xs text-destructive mt-1" role="alert">{nameError}</p>}
+          <p className="text-muted-foreground mt-0.5 text-xs sm:text-sm line-clamp-2">
             {group.description || 'No description provided.'}
           </p>
         </div>
 
-        <Button onClick={() => setCreateHabitOpen(true)} className="flex-shrink-0">
-          <Plus className="h-4 w-4 mr-2" />
-          New Habit
+        <Button onClick={() => setCreateHabitOpen(true)} size="sm" className="h-9 px-3 text-xs sm:text-sm flex-shrink-0 self-start sm:self-auto">
+          <Plus className="h-4 w-4 mr-1.5" />
+          Add Habit
         </Button>
       </div>
 
-      {/* Rules & Stats Overview */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3">
+      {/* Rules & Metrics Overview */}
+      <div className="grid gap-2.5 sm:gap-4 grid-cols-2 sm:grid-cols-3">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
-              <Wallet className="h-4 w-4 text-primary" />
-              Penalty Rule
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] sm:text-xs font-medium">
+              <Wallet className="h-3.5 w-3.5 text-primary" />
+              Penalty Stake
             </div>
-            <div className="text-xl sm:text-2xl font-bold mt-1">
+            <div className="text-lg sm:text-2xl font-bold mt-1">
               {currencySymbol}{(group.penalty_amount / 100).toFixed(0)}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">per missed habit</p>
+            <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">per missed habit</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
-              <Users className="h-4 w-4 text-primary" />
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] sm:text-xs font-medium">
+              <Users className="h-3.5 w-3.5 text-primary" />
               Members
             </div>
-            <div className="text-xl sm:text-2xl font-bold mt-1">
+            <div className="text-lg sm:text-2xl font-bold mt-1">
               {members.length} <span className="text-xs font-normal text-muted-foreground">/ {group.max_members}</span>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">active accountability partners</p>
+            <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">accountability partners</p>
           </CardContent>
         </Card>
 
         <Card className="col-span-2 sm:col-span-1">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
-              <Target className="h-4 w-4 text-primary" />
-              Group Habits
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] sm:text-xs font-medium">
+              <Target className="h-3.5 w-3.5 text-primary" />
+              Circle Habits
             </div>
-            <div className="text-xl sm:text-2xl font-bold mt-1">
+            <div className="text-lg sm:text-2xl font-bold mt-1">
               {habits.length}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">habits tracked together</p>
+            <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">commitments tracked</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Group Habits Section */}
-      <div className="space-y-4">
+      {/* Circle Habits Section */}
+      <div className="space-y-3 sm:space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
-            Group Habits ({habits.length})
+          <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+            <Target className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+            Circle Habits ({habits.length})
           </h2>
-          <Button variant="outline" size="sm" onClick={() => setCreateHabitOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Add Habit
+          <Button variant="outline" size="sm" onClick={() => setCreateHabitOpen(true)} className="h-8 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            New
           </Button>
         </div>
 
         {!habits.length ? (
           <Card className="border-dashed">
-            <CardContent className="py-8 text-center">
+            <CardContent className="py-8 text-center px-4">
               <Target className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-              <h3 className="font-semibold text-base mb-1">No habits in this group yet</h3>
+              <h3 className="font-semibold text-sm sm:text-base mb-1">No habits in this circle yet</h3>
               <p className="text-muted-foreground text-xs sm:text-sm mb-4 max-w-sm mx-auto">
-                Set up a habit for yourself or invite members to establish their commitments.
+                Set up a habit for yourself or invite circle members to establish their commitments.
               </p>
               <Button size="sm" onClick={() => setCreateHabitOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Group Habit
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create Circle Habit
               </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
             {habits.map((habit) => {
               const isCreator = habit.created_by === userId
               const isCheckedIn = habit.checkins?.some(c => c.profile_id === userId)
 
               return (
                 <Card key={habit.id} className="transition-all hover:border-primary/40">
-                  <CardContent className="p-4">
+                  <CardContent className="p-3.5 sm:p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h4 className="font-semibold text-base truncate">{habit.name}</h4>
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-semibold text-sm sm:text-base truncate">{habit.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
                           by <span className="text-foreground font-medium">{habit.creator?.username || 'Member'}</span>
                         </p>
                       </div>
@@ -533,7 +535,7 @@ export default function GroupPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
                           onClick={() => setDeleteHabitId(habit.id)}
                           aria-label={`Delete ${habit.name}`}
                         >
@@ -543,21 +545,21 @@ export default function GroupPage() {
                     </div>
 
                     <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-[11px] capitalize">
                         {habit.schedule?.frequency || 'daily'}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[11px] text-muted-foreground">
                         Target: {habit.schedule?.target_quantity || 1}x
                       </span>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t flex items-center justify-between gap-2">
+                    <div className="mt-3.5 pt-2.5 border-t flex items-center justify-between gap-2">
                       <Button
                         size="sm"
                         variant={isCheckedIn ? 'secondary' : 'default'}
                         onClick={() => handleCheckIn(habit.id)}
                         disabled={!isCreator || isCheckedIn || checkingInHabitId === habit.id}
-                        className="text-xs h-8"
+                        className="text-xs h-8 px-3"
                       >
                         {checkingInHabitId === habit.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -567,7 +569,7 @@ export default function GroupPage() {
                         {!isCreator
                           ? 'View only'
                           : isCheckedIn
-                            ? 'Checked in today'
+                            ? 'Checked in'
                             : 'Check in'}
                       </Button>
 
@@ -584,36 +586,34 @@ export default function GroupPage() {
       </div>
 
       {/* Members & Invite Section */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
         {/* Members List */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+          <CardHeader className="p-3.5 sm:p-4 pb-2 sm:pb-3">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
               Members ({members.length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="p-3.5 sm:p-4 pt-0 space-y-2">
             {members.map((m: Member) => (
               <div
                 key={m.user_id}
-                className="flex items-center justify-between p-2.5 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                className="flex items-center justify-between p-2.5 rounded-lg border bg-card hover:bg-muted/30 transition-colors gap-2"
               >
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
                     {(m.profiles?.username || 'U').slice(0, 2)}
                   </div>
-                  <div>
-                    <p className="font-medium text-sm leading-tight">
-                      {m.profiles?.username || 'Member'}
-                      {m.user_id === userId && <span className="text-xs text-muted-foreground ml-1.5">(you)</span>}
-                    </p>
-                  </div>
+                  <p className="font-medium text-xs sm:text-sm leading-tight truncate">
+                    {m.profiles?.username || 'Member'}
+                    {m.user_id === userId && <span className="text-[11px] text-muted-foreground ml-1">(you)</span>}
+                  </p>
                 </div>
 
                 <Badge
                   variant={m.role === 'owner' ? 'default' : m.role === 'admin' ? 'secondary' : 'outline'}
-                  className="text-[10px] capitalize"
+                  className="text-[10px] capitalize flex-shrink-0"
                 >
                   {m.role === 'owner' && <Shield className="h-3 w-3 mr-1" />}
                   {m.role}
@@ -625,24 +625,24 @@ export default function GroupPage() {
 
         {/* Invite Friends */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+          <CardHeader className="p-3.5 sm:p-4 pb-2 sm:pb-3">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
               <Send className="h-4 w-4 text-primary" />
               Invite Partners
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-3.5 sm:p-4 pt-0 space-y-3.5">
             <form onSubmit={handleInvite} className="space-y-3">
-              <div>
-                <Label htmlFor="email" className="text-xs">Friend's email address</Label>
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-xs">Partner's email</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="partner@example.com"
+                  placeholder="friend@example.com"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   disabled={inviting}
-                  className="mt-1"
+                  className="h-10 text-sm"
                 />
               </div>
 
@@ -653,7 +653,7 @@ export default function GroupPage() {
                 <p className="text-xs text-destructive font-medium">{inviteError}</p>
               )}
 
-              <Button type="submit" size="sm" disabled={inviting || !inviteEmail.trim()} className="w-full">
+              <Button type="submit" size="sm" disabled={inviting || !inviteEmail.trim()} className="w-full h-10 text-xs sm:text-sm">
                 {inviting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                 Generate Invite Link
               </Button>
@@ -665,18 +665,18 @@ export default function GroupPage() {
                 size="sm"
                 onClick={copyInviteLink}
                 disabled={!inviteLink}
-                className="w-full justify-center"
+                className="w-full justify-center h-10 text-xs sm:text-sm"
               >
                 {copiedLink ? <Check className="h-4 w-4 mr-2 text-green-500" /> : <Copy className="h-4 w-4 mr-2" />}
-                {copiedLink ? 'Copied to Clipboard!' : 'Copy Shareable Invite Link'}
+                {copiedLink ? 'Copied to Clipboard!' : 'Copy Shareable Link'}
               </Button>
               {inviteLink ? (
-                <p className="break-all text-[11px] text-muted-foreground p-2 rounded bg-muted">
+                <p className="break-all text-[11px] text-muted-foreground p-2 rounded bg-muted/60 max-h-20 overflow-y-auto">
                   {inviteLink}
                 </p>
               ) : (
-                <p className="text-xs text-muted-foreground text-center">
-                  Enter an email above to generate a private invite token for your group.
+                <p className="text-[11px] text-muted-foreground text-center">
+                  Generate a private token link above to onboard friends directly.
                 </p>
               )}
             </div>
@@ -686,19 +686,19 @@ export default function GroupPage() {
 
       {/* Create Habit Dialog */}
       <Dialog open={createHabitOpen} onOpenChange={setCreateHabitOpen}>
-        <DialogContent className="sm:max-w-md mx-2">
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Add habit to {group.name}</DialogTitle>
-            <DialogDescription>
-              Commit to a habit in this group. All members will be able to see your progress and keep you accountable.
+            <DialogTitle className="text-base sm:text-lg">Add habit to {group.name}</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Commit to a habit in this circle. All members can view your consistency.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateHabit} className="space-y-4">
+          <form onSubmit={handleCreateHabit} className="space-y-3.5 sm:space-y-4">
             {habitError && (
-              <p className="text-sm text-destructive" role="alert">{habitError}</p>
+              <p className="text-xs sm:text-sm text-destructive" role="alert">{habitError}</p>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="habit-modal-name">Habit name *</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="habit-modal-name" className="text-xs sm:text-sm">Habit name *</Label>
               <Input
                 id="habit-modal-name"
                 value={habitFormName}
@@ -706,12 +706,13 @@ export default function GroupPage() {
                 placeholder="e.g. 30min Morning Workout"
                 required
                 maxLength={100}
+                className="h-10 text-sm"
                 autoFocus
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="habit-modal-frequency">Frequency</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="habit-modal-frequency" className="text-xs sm:text-sm">Frequency</Label>
                 <select
                   id="habit-modal-frequency"
                   value={habitFormFrequency}
@@ -723,8 +724,8 @@ export default function GroupPage() {
                   <option value="monthly">Monthly</option>
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="habit-modal-target">Target count</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="habit-modal-target" className="text-xs sm:text-sm">Target count</Label>
                 <Input
                   id="habit-modal-target"
                   type="number"
@@ -732,15 +733,16 @@ export default function GroupPage() {
                   max="100"
                   value={habitFormTarget}
                   onChange={(e) => setHabitFormTarget(e.target.value)}
+                  className="h-10 text-sm"
                   required
                 />
               </div>
             </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button type="button" variant="outline" onClick={() => setCreateHabitOpen(false)}>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setCreateHabitOpen(false)} className="w-full sm:w-auto h-10">
                 Cancel
               </Button>
-              <Button type="submit" disabled={creatingHabit || !habitFormName.trim()}>
+              <Button type="submit" disabled={creatingHabit || !habitFormName.trim()} className="w-full sm:w-auto h-10">
                 {creatingHabit && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create Habit
               </Button>
@@ -751,21 +753,21 @@ export default function GroupPage() {
 
       {/* Delete Group Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Delete {group.name}?</DialogTitle>
-            <DialogDescription>
-              This permanently removes the group, all group habits, active invitations, and member associations. This action cannot be undone.
+            <DialogTitle className="text-base sm:text-lg">Delete {group.name}?</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              This permanently removes the circle, all group habits, active invitations, and member records. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+          {deleteError && <p className="text-xs sm:text-sm text-destructive">{deleteError}</p>}
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting} className="w-full sm:w-auto h-10">
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={handleDeleteGroup} disabled={deleting}>
+            <Button type="button" variant="destructive" onClick={handleDeleteGroup} disabled={deleting} className="w-full sm:w-auto h-10">
               {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Delete Group
+              Delete Circle
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -773,18 +775,18 @@ export default function GroupPage() {
 
       {/* Delete Habit Dialog */}
       <Dialog open={Boolean(deleteHabitId)} onOpenChange={(open) => { if (!open && !deletingHabit) setDeleteHabitId(null) }}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Delete this habit?</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this habit? All check-ins and recorded history for this habit will be removed.
+            <DialogTitle className="text-base sm:text-lg">Delete this habit?</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Are you sure? All check-ins and recorded history for this habit will be removed permanently.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteHabitId(null)} disabled={deletingHabit}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setDeleteHabitId(null)} disabled={deletingHabit} className="w-full sm:w-auto h-10">
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={handleDeleteHabit} disabled={deletingHabit}>
+            <Button type="button" variant="destructive" onClick={handleDeleteHabit} disabled={deletingHabit} className="w-full sm:w-auto h-10">
               {deletingHabit && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Delete Habit
             </Button>

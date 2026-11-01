@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { checkInHabit, createHabit, deleteHabit, getUserHabits } from '@/features/habits/actions'
-import { Plus, Target, Loader2, CheckCircle2, Trash2, Calendar, Users, Filter } from 'lucide-react'
+import { Plus, Target, Loader2, CheckCircle2, Trash2, Users } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -50,13 +50,13 @@ function HabitsSkeleton() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
-        <Skeleton className="h-7 w-28" />
-        <Skeleton className="h-10 w-28" />
+        <Skeleton className="h-7 w-24 sm:h-8 sm:w-32" />
+        <Skeleton className="h-9 w-24 sm:h-10 sm:w-28" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {[1, 2, 3].map(i => (
           <Card key={i}>
-            <CardContent className="p-4">
+            <CardContent className="p-3.5 sm:p-4">
               <Skeleton className="h-5 w-32 mb-2" />
               <Skeleton className="h-3 w-24 mb-3" />
               <Skeleton className="h-8 w-full mt-4" />
@@ -232,19 +232,19 @@ export default function HabitsPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Habits</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Your committed habits and peer activity across all groups.
+            Your committed habits and peer activity across all circles.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {groups.length > 1 && (
             <select
               value={selectedGroupId}
               onChange={(e) => setSelectedGroupId(e.target.value)}
-              className="h-9 rounded-md border bg-background px-3 text-xs"
-              aria-label="Filter habits by group"
+              className="flex-1 sm:flex-initial h-9 rounded-md border bg-background px-2.5 text-xs"
+              aria-label="Filter habits by circle"
             >
-              <option value="all">All Groups ({habits.length})</option>
+              <option value="all">All Circles ({habits.length})</option>
               {groups.map(g => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}
@@ -254,56 +254,56 @@ export default function HabitsPage() {
           <Button
             onClick={() => { setError(null); setDialogOpen(true) }}
             disabled={!groups.length}
-            className="flex-shrink-0"
+            size="sm"
+            className="h-9 px-3 text-xs sm:text-sm flex-shrink-0"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">New Habit</span>
-            <span className="sm:hidden">Add</span>
+            <Plus className="h-4 w-4 mr-1.5" />
+            <span>New Habit</span>
           </Button>
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+      {error && <p className="text-xs sm:text-sm text-destructive" role="alert">{error}</p>}
 
       {!habits.length ? (
         <Card className="border-dashed">
-          <CardContent className="py-10 sm:py-14 text-center">
-            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto text-sm">
-              Create your first habit to start building consistency with your accountability group.
+          <CardContent className="py-8 sm:py-14 text-center px-4">
+            <Target className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-base sm:text-lg font-semibold mb-1.5">No habits yet</h3>
+            <p className="text-muted-foreground mb-5 max-w-sm mx-auto text-xs sm:text-sm leading-relaxed">
+              Create your first habit to start building consistency with your accountability circle.
             </p>
             {groups.length > 0 ? (
-              <Button onClick={() => { setError(null); setDialogOpen(true) }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Habit
+              <Button onClick={() => { setError(null); setDialogOpen(true) }} className="w-full sm:w-auto">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Commit to a Habit
               </Button>
             ) : (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  You need to create or join a group first before committing to habits.
+                  You need to join or create a circle first before committing to habits.
                 </p>
-                <Button onClick={() => router.push('/dashboard/groups')}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Create a Group
+                <Button onClick={() => router.push('/dashboard/groups')} className="w-full sm:w-auto">
+                  <Users className="h-4 w-4 mr-1.5" />
+                  Create First Circle
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {filteredHabits.map((habit) => {
             const isCreator = habit.created_by === currentUserId
             const isCheckedIn = habit.checkins?.some(c => c.profile_id === currentUserId)
 
             return (
-              <Card key={`${habit.id}-${habit.checkins?.length || 0}`} className="flex flex-col justify-between hover:shadow-sm transition-shadow">
-                <CardContent className="p-4 flex-1 flex flex-col justify-between">
+              <Card key={`${habit.id}-${habit.checkins?.length || 0}`} className="flex flex-col justify-between hover:border-primary/40 transition-all">
+                <CardContent className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-base truncate">{habit.name}</h3>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-sm sm:text-base truncate">{habit.name}</h3>
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
                           in <span className="font-medium text-foreground">{habit.group?.name}</span>
                         </p>
@@ -325,19 +325,19 @@ export default function HabitsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline" className="text-xs capitalize">
+                      <Badge variant="outline" className="text-[10px] sm:text-xs capitalize">
                         {habit.schedule?.frequency || 'daily'}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[11px] text-muted-foreground">
                         Target: {habit.schedule?.target_quantity || 1}x
                       </span>
-                      <span className="text-xs text-muted-foreground ml-auto">
+                      <span className="text-[11px] text-muted-foreground ml-auto truncate">
                         by {habit.creator?.username || 'Member'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t space-y-3">
+                  <div className="mt-3.5 pt-2.5 border-t space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <Button
                         size="sm"
@@ -347,9 +347,9 @@ export default function HabitsPage() {
                         className="text-xs h-9 flex-1 sm:flex-initial"
                       >
                         {checkingIn === habit.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                         ) : (
-                          <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
                         )}
                         {!isCreator
                           ? 'View only'
@@ -367,24 +367,19 @@ export default function HabitsPage() {
                     {habit.checkins && habit.checkins.length > 0 ? (
                       <div className="space-y-1 bg-muted/40 p-2 rounded-md text-[11px] text-muted-foreground">
                         {habit.checkins.slice(0, 2).map(c => (
-                          <div key={c.id} className="flex items-center justify-between">
+                          <div key={c.id} className="flex items-center justify-between gap-1">
                             <span className="font-medium text-foreground truncate max-w-[120px]">
                               {c.profile?.username || 'Member'}
                             </span>
-                            <Badge variant="success" className="text-[10px] py-0 px-1.5">
+                            <Badge variant="success" className="text-[9px] py-0 px-1.5 flex-shrink-0">
                               {c.status}
                             </Badge>
                           </div>
                         ))}
-                        {habit.checkins.length > 2 && (
-                          <p className="text-[10px] text-muted-foreground text-center pt-0.5">
-                            +{habit.checkins.length - 2} more activity
-                          </p>
-                        )}
                       </div>
                     ) : (
-                      <p className="text-[11px] text-muted-foreground text-center py-1">
-                        No check-ins yet for this period.
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground text-center py-0.5">
+                        No check-ins recorded for this period yet.
                       </p>
                     )}
                   </div>
@@ -395,18 +390,18 @@ export default function HabitsPage() {
         </div>
       )}
 
-      {/* Create Habit Dialog */}
+      {/* Responsive Create Habit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md mx-2">
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Create Habit</DialogTitle>
-            <DialogDescription>
-              Commit to a habit and choose which accountability group it belongs to.
+            <DialogTitle className="text-base sm:text-lg">Create Habit</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Commit to a habit and choose which accountability circle it belongs to.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateHabit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="habit-form-name">Habit Name *</Label>
+          <form onSubmit={handleCreateHabit} className="space-y-3.5 sm:space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="habit-form-name" className="text-xs sm:text-sm">Habit Name *</Label>
               <Input
                 id="habit-form-name"
                 value={habitName}
@@ -414,12 +409,13 @@ export default function HabitsPage() {
                 placeholder="e.g. Read 20 pages"
                 required
                 maxLength={100}
+                className="h-10 text-sm"
                 autoFocus
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="habit-form-group">Accountability Group *</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="habit-form-group" className="text-xs sm:text-sm">Accountability Circle *</Label>
               <select
                 id="habit-form-group"
                 value={habitGroupId}
@@ -433,9 +429,9 @@ export default function HabitsPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="habit-form-frequency">Frequency</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="habit-form-frequency" className="text-xs sm:text-sm">Frequency</Label>
                 <select
                   id="habit-form-frequency"
                   value={habitFrequency}
@@ -448,8 +444,8 @@ export default function HabitsPage() {
                 </select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="habit-form-target">Target Count</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="habit-form-target" className="text-xs sm:text-sm">Target Count</Label>
                 <Input
                   id="habit-form-target"
                   type="number"
@@ -457,16 +453,17 @@ export default function HabitsPage() {
                   max="100"
                   value={habitTarget}
                   onChange={(e) => setHabitTarget(e.target.value)}
+                  className="h-10 text-sm"
                   required
                 />
               </div>
             </div>
 
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto h-10">
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving || !habitName.trim()}>
+              <Button type="submit" disabled={saving || !habitName.trim()} className="w-full sm:w-auto h-10">
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create Habit
               </Button>
@@ -477,18 +474,18 @@ export default function HabitsPage() {
 
       {/* Delete Habit Confirmation Dialog */}
       <Dialog open={Boolean(deleteHabitId)} onOpenChange={(open) => { if (!open && !deletingHabit) setDeleteHabitId(null) }}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Delete this habit?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Delete this habit?</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               This permanently removes the habit, its schedule, and recorded check-ins.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteHabitId(null)} disabled={Boolean(deletingHabit)}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setDeleteHabitId(null)} disabled={Boolean(deletingHabit)} className="w-full sm:w-auto h-10">
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={handleDeleteHabit} disabled={Boolean(deletingHabit)}>
+            <Button type="button" variant="destructive" onClick={handleDeleteHabit} disabled={Boolean(deletingHabit)} className="w-full sm:w-auto h-10">
               {deletingHabit && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Delete Habit
             </Button>
