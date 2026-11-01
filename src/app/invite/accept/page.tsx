@@ -67,7 +67,7 @@ function AcceptInviteContent({ router, searchParams }: { router: ReturnType<type
         }
 
         setStatus('success')
-        setMessage(`You've joined "${groupName}"!`)
+        setMessage(`You've joined "${group?.name || 'the group'}"!`)
 
         setTimeout(() => {
           router.push('/dashboard/groups')

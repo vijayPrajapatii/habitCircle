@@ -26,6 +26,11 @@ interface Member {
   profiles: { username: string }
 }
 
+interface Invitation {
+  code: string
+  link_token: string
+}
+
 export default function GroupPage() {
   const params = useParams<{ groupId: string }>()
   const router = useRouter()
@@ -36,6 +41,7 @@ export default function GroupPage() {
   const [inviting, setInviting] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [inviteError, setInviteError] = useState('')
+  const [inviteLink, setInviteLink] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState(false)
   const [groupName, setGroupName] = useState('')
@@ -122,15 +128,17 @@ export default function GroupPage() {
     if (result.error) {
       setInviteError(result.error)
     } else {
-      setInviteSuccess('Invitation sent! They will receive an email with a link to join.')
+      const invitation = result.invitation as Invitation
+      const link = `${window.location.origin}/invite/accept?token=${encodeURIComponent(invitation.link_token)}`
+      setInviteLink(link)
+      setInviteSuccess('Invitation link created. Share it with your friend to join this group.')
       setInviteEmail('')
     }
     setInviting(false)
   }
 
   const copyInviteLink = () => {
-    if (group) {
-      const inviteLink = `${process.env.NEXT_PUBLIC_SITE_URL}/invite/${group.id}`
+    if (inviteLink) {
       navigator.clipboard.writeText(inviteLink)
       alert('Invite link copied to clipboard!')
     }
@@ -228,12 +236,13 @@ export default function GroupPage() {
           </form>
 
           <div className="border-t pt-4">
-            <Button variant="ghost" onClick={copyInviteLink}>
+            <Button variant="ghost" onClick={copyInviteLink} disabled={!inviteLink}>
               <Copy className="h-4 w-4 mr-2" />
               Copy Invite Link
             </Button>
+            {inviteLink && <p className="mt-2 break-all text-xs text-muted-foreground">{inviteLink}</p>}
             <p className="text-xs text-muted-foreground mt-2">
-              Or share this link with friends
+              Create an invitation first, then share the link with your friend.
             </p>
           </div>
         </CardContent>
