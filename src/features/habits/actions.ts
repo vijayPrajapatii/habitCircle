@@ -40,13 +40,25 @@ export interface Habit {
 export async function getUserHabits(userId?: string): Promise<{ habits: Habit[] | null; error: string | null }> {
   const supabase = await createClient()
 
-  let targetUserId = userId
-  if (!targetUserId) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { habits: null, error: 'Not authenticated' }
-    }
-    targetUserId = user.id
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { habits: null, error: 'Not authenticated' }
+  }
+
+  // Get user's group memberships
+  const { data: memberships, error: memError } = await supabase
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', user.id)
+    .is('left_at', null)
+
+  if (memError) {
+    return { habits: null, error: memError.message }
+  }
+
+  const groupIds = (memberships as any[] | null)?.map(m => m.group_id) || []
+  if (groupIds.length === 0) {
+    return { habits: [], error: null }
   }
 
   const { data, error } = await supabase
@@ -76,14 +88,21 @@ export async function getUserHabits(userId?: string): Promise<{ habits: Habit[] 
         status
       )
     `)
-    .eq('group_id', supabase.auth.getUser().then(({ data: { user } }) => user?.id))
+    .in('group_id', groupIds)
     .order('created_at', { ascending: false })
 
   if (error) {
     return { habits: null, error: error.message }
   }
 
-  return { habits: data as Habit[], error: null }
+  // Transform to flatten nested data
+  const habits = (data as any[]).map(h => ({
+    ...h,
+    group: h.groups || h.group,
+    schedule: h.habit_schedules?.[0] || h.schedule
+  }))
+
+  return { habits: habits as Habit[], error: null }
 }
 
 export async function getGroupHabits(groupId: string): Promise<{ habits: Habit[] | null; error: string | null }> {
