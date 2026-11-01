@@ -70,23 +70,32 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
 
   const { data: occurrences } = await supabase
     .from('habit_occurrences' as any)
-    .select(`
-      id,
-      schedule_id,
-      period_start,
-      period_end,
-      status,
-      checkins:habit_checkins (
-        id,
-        profile_id,
-        quantity,
-        status,
-        profile:profiles (username)
-      )
-    `)
+    .select('id, schedule_id, period_start, period_end, status')
     .in('schedule_id', scheduleIds)
     .gte('period_end', new Date().toISOString())
     .order('period_start', { ascending: false })
+
+  const occurrenceIds = (occurrences as any[] | null)?.map(occurrence => occurrence.id) || []
+  const { data: checkins } = occurrenceIds.length
+    ? await supabase
+      .from('habit_checkins' as any)
+      .select('id, occurrence_id, profile_id, quantity, status')
+      .in('occurrence_id', occurrenceIds)
+    : { data: [] }
+  const checkinProfileIds = (checkins as any[] | null)?.map(checkin => checkin.profile_id).filter(Boolean) || []
+  const { data: checkinProfiles } = checkinProfileIds.length
+    ? await supabase.from('profiles').select('id, username').in('id', checkinProfileIds)
+    : { data: [] }
+  const profilesById = new Map((checkinProfiles || []).map(profile => [profile.id, profile]))
+  const checkinsByOccurrence = new Map<string, any[]>()
+  for (const checkin of checkins || []) {
+    const activity = {
+      ...checkin,
+      profile: profilesById.get(checkin.profile_id) || null,
+    }
+    const existing = checkinsByOccurrence.get(checkin.occurrence_id) || []
+    checkinsByOccurrence.set(checkin.occurrence_id, [...existing, activity])
+  }
 
   return habits.map(habit => {
     const schedule = habit.habit_schedules?.[0]
@@ -95,7 +104,7 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
       ...habit,
       creator: creatorsById.get(habit.created_by) || null,
       occurrences: occurrence ? [occurrence] : [],
-      checkins: occurrence?.checkins || [],
+      checkins: occurrence ? checkinsByOccurrence.get(occurrence.id) || [] : [],
     }
   })
 }
