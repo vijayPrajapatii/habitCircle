@@ -1,48 +1,123 @@
+'use client'
+
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Users, Loader2, AlertCircle, Copy, ExternalLink } from 'lucide-react'
+import { Plus, Users, Loader2, AlertCircle, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
-import { getUserGroups } from '@/features/groups/queries'
-import { createGroup } from '@/features/groups/actions'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createBrowserClient } from '@supabase/ssr'
 
-async function GroupsContent() {
-  const { groups, error } = await getUserGroups()
+async function fetchGroups(supabase: ReturnType<typeof createBrowserClient>) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
 
-  if (error) {
+  const { data: groups, error } = await supabase
+    .from('group_members')
+    .select(`
+      group_id,
+      role,
+      joined_at,
+      groups:groups (
+        id,
+        name,
+        description,
+        penalty_amount,
+        currency,
+        max_members,
+        timezone,
+        created_at,
+        updated_at
+      )
+    `)
+    .eq('user_id', user.id)
+    .is('left_at', null)
+    .order('joined_at', { ascending: false })
+
+  if (error) return []
+
+  return groups?.map(g => ({
+    id: g.groups.id,
+    name: g.groups.name,
+    description: g.groups.description,
+    penalty_amount: g.groups.penalty_amount,
+    currency: g.groups.currency,
+    max_members: g.groups.max_members,
+    timezone: g.groups.timezone,
+    created_at: g.groups.created_at,
+    updated_at: g.groups.updated_at,
+  })) || []
+}
+
+export default function GroupsPage() {
+  const router = useRouter()
+  const [groups, setGroups] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [createLoading, setCreateLoading] = useState(false)
+
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    fetchGroups(supabase).then(data => {
+      setGroups(data)
+      setLoading(false)
+    })
+  }, [])
+
+  const handleCreateGroup = async () => {
+    setCreateLoading(true)
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    const { data: user } = await supabase.auth.getUser()
+    if (!user?.user) {
+      setCreateLoading(false)
+      return
+    }
+
+    const { data: group, error } = await supabase
+      .from('groups')
+      .insert({
+        name: 'New Group',
+        description: '',
+        penalty_amount: 1000,
+        currency: 'INR',
+        timezone: 'UTC',
+        max_members: 10,
+        created_by: user.user.id,
+      })
+      .select()
+      .single()
+
+    if (group) {
+      // Add as owner
+      await supabase
+        .from('group_members')
+        .insert({
+          group_id: group.id,
+          user_id: user.user.id,
+          role: 'owner',
+        })
+
+      setGroups([group, ...groups])
+    }
+    setCreateLoading(false)
+  }
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center p-6">
-        <div className="text-center">
-          <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">{error}</p>
-        </div>
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     )
   }
 
-  const [localGroups, setLocalGroups] = useState(groups || [])
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
-
-  const handleCreateGroup = async () => {
-    setLoading(true)
-    const formData = new FormData()
-    formData.append('name', 'New Group')
-    formData.append('description', '')
-    formData.append('penalty_amount', '1000')
-    formData.append('currency', 'INR')
-    formData.append('timezone', 'UTC')
-    formData.append('max_members', '10')
-
-    const result = await createGroup(formData)
-    if (result?.group) {
-      setLocalGroups([...localGroups, result.group])
-    }
-    setLoading(false)
-  }
-
-  if (!groups || groups.length === 0) {
+  if (!groups.length) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -50,8 +125,8 @@ async function GroupsContent() {
             <h1 className="text-2xl font-bold tracking-tight">My Groups</h1>
             <p className="text-muted-foreground mt-1">Groups you own or belong to</p>
           </div>
-          <Button onClick={handleCreateGroup} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+          <Button onClick={handleCreateGroup} disabled={createLoading}>
+            {createLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
             New Group
           </Button>
         </div>
@@ -63,8 +138,8 @@ async function GroupsContent() {
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Create your first group to start building habits with friends.
             </p>
-            <Button onClick={handleCreateGroup} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <Button onClick={handleCreateGroup} disabled={createLoading}>
+              {createLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create Group
             </Button>
           </CardContent>
@@ -77,8 +152,8 @@ async function GroupsContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">My Groups</h1>
-        <Button onClick={handleCreateGroup} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+        <Button onClick={handleCreateGroup} disabled={createLoading}>
+          {createLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
           New Group
         </Button>
       </div>
@@ -105,8 +180,4 @@ async function GroupsContent() {
       </div>
     </div>
   )
-}
-
-export default function GroupsPage() {
-  return <GroupsContent />
 }
