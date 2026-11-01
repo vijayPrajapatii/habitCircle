@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, Users, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 
 interface Group {
@@ -97,41 +98,43 @@ export default function GroupsPage() {
   }
 
   if (loading) {
-    return <div className="p-6"><Loader2 className="h-6 w-6 animate-spin" /></div>
+    return <div className="p-4 sm:p-6"><Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" /></div>
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">My Groups</h1>
-        <Button onClick={handleCreateGroup} disabled={createLoading}>
+    <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold truncate">Groups</h1>
+        <Button onClick={handleCreateGroup} disabled={createLoading} className="flex-shrink-0" aria-label="Create group" title="Create group">
           {createLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-          New Group
+          <span className="hidden sm:inline">New Group</span>
         </Button>
       </div>
 
       {!groups.length ? (
         <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <CardContent className="py-8 sm:py-12 text-center">
+            <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
             <h3 className="text-lg font-semibold mb-2">No groups yet</h3>
-            <p className="text-muted-foreground mb-4">Create your first group</p>
-            <Button onClick={handleCreateGroup} disabled={createLoading}>
+            <p className="text-muted-foreground mb-4 px-4">Create your first group</p>
+            <Button onClick={handleCreateGroup} disabled={createLoading} className="w-full sm:w-auto">
               Create Group
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-4 xs:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map(group => (
-            <Card key={group.id} onClick={() => router.push(`/dashboard/groups/${group.id}`)} className="cursor-pointer hover:shadow-md">
-              <CardContent className="p-4">
-                <h3 className="font-semibold">{group.name}</h3>
-                <p className="text-xs text-muted-foreground mt-1">{group.description}</p>
+            <Card key={group.id} className="transition-shadow hover:shadow-md touch-manipulation">
+              <Link href={`/dashboard/groups/${group.id}`} className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <CardContent className="p-3 sm:p-4">
+                <h3 className="font-semibold text-sm sm:text-base truncate">{group.name}</h3>
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{group.description || 'No description'}</p>
                 <div className="mt-2 text-xs text-muted-foreground">
                   {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
                 </div>
               </CardContent>
+              </Link>
             </Card>
           ))}
         </div>

@@ -9,7 +9,7 @@ const navigation = [
   { name: 'Home', href: '/dashboard', icon: Home },
   { name: 'Groups', href: '/dashboard/groups', icon: Users },
   { name: 'Habits', href: '/dashboard/habits', icon: Target },
-  { name: 'Profile', href: '/dashboard/profile', icon: User },
+  { name: 'Settings', href: '/dashboard/settings', icon: User },
 ]
 
 export function BottomNav() {
@@ -17,7 +17,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] lg:hidden border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
       role="navigation"
       aria-label="Bottom navigation"
     >
@@ -29,7 +29,7 @@ export function BottomNav() {
               <Link
                 href={item.href}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 py-2 px-2 text-xs font-medium transition-colors',
+                  'flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors',
                   isActive
                     ? 'text-primary'
                     : 'text-muted-foreground'

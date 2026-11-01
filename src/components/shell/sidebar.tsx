@@ -20,8 +20,8 @@ import { createClient } from '@/lib/supabase/client'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'My Groups', href: '/dashboard/groups', icon: Users },
-  { name: 'My Habits', href: '/dashboard/habits', icon: Target },
+  { name: 'Groups', href: '/dashboard/groups', icon: Users },
+  { name: 'Habits', href: '/dashboard/habits', icon: Target },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
@@ -191,7 +191,7 @@ export function Sidebar() {
 
       {/* Mobile menu button */}
       <button
-        className="lg:hidden fixed bottom-4 right-4 z-50 p-3 rounded-full bg-primary text-primary-foreground shadow-lg"
+        className="lg:hidden fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-50 p-3 rounded-full bg-primary text-primary-foreground shadow-lg"
         onClick={() => setIsOpen(true)}
         aria-label="Open menu"
         aria-expanded={isOpen}
