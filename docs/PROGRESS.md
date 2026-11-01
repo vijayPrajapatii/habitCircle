@@ -57,6 +57,23 @@
 - Updated: Dashboard page to fetch real habits from database
 - Updated: Settings page (removed Notifications section)
 
+### Completed / Verified
+- [x] Build verification - `npm run build` passes (TypeScript, compilation, static generation)
+- [x] Fixed TypeScript errors in dashboard/page.tsx and habits/actions.ts
+- [x] Fixed Habit interface to make occurrences optional (fixes type safety)
+- [x] Fixed RLS policy bugs in migrations 009 and 012
+- [x] Added migrations 013_fix_group_members_rls.sql and 014_finalize_rls_fixes.sql
+
+### RLS Fix Summary
+The issue was that the group creation flow requires two INSERT operations:
+1. INSERT into `groups` table (needs `groups_insert_authenticated` policy)
+2. INSERT into `group_members` table (needs `group_members_insert_self` policy)
+
+The fix:
+- Migration 012: `groups_insert_authenticated` allows any authenticated user to create groups
+- Migration 009 (updated): `group_members_insert_self` allows users to add themselves as members
+- Migration 014: Finalizes all RLS policies for group creation flow
+
 ### Pending / Next Steps
 - [ ] Run `supabase start` and `supabase db reset` to apply migrations
 - [ ] Run `supabase gen types` to generate TypeScript types

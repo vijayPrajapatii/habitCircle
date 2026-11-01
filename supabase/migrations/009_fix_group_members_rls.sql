@@ -23,17 +23,11 @@ create policy "group_members_select_member"
     )
   );
 
--- Anyone can insert INTO group_members IF:
--- 1. The user is creating themselves as a member of a group they already belong to
--- OR 2. They're inserting as 'owner' role and are creating a new group
-create policy "group_members_insert_allowed"
+-- Anyone can insert their own membership record
+-- This replaces the buggy policy that referenced created_by (which is on groups table, not group_members)
+create policy "group_members_insert_self"
   on public.group_members for insert
-  with check (
-    -- Allow if user is joining their own invitation (email matches or joining via invite)
-    (user_id = auth.uid() and role = 'member')
-    -- Allow owner to be added when creating group (no existing membership check)
-    or (role = 'owner' and created_by = auth.uid())
-  );
+  with check (user_id = auth.uid());
 
 -- For group creation, we need to track the creator
 -- This is handled in the groups table creation
