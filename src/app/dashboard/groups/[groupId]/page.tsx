@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createInvitation } from '@/features/invitations/actions'
-import { Users, Loader2, Send, Copy, AlertCircle } from 'lucide-react'
+import { updateGroupName } from '@/features/groups/actions'
+import { Users, Loader2, Send, Copy, AlertCircle, Pencil, Check, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
@@ -35,6 +36,11 @@ export default function GroupPage() {
   const [inviting, setInviting] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [inviteError, setInviteError] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState(false)
+  const [groupName, setGroupName] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [nameError, setNameError] = useState('')
 
   useEffect(() => {
     if (!params?.groupId) return
@@ -49,6 +55,7 @@ export default function GroupPage() {
         router.push('/login')
         return
       }
+      setUserId(user.id)
 
       supabase
         .from('groups')
@@ -64,6 +71,7 @@ export default function GroupPage() {
 
           const g: Group = data
           setGroup(g)
+          setGroupName(g.name)
 
           const filtered = (data as any).members.filter((m: any) => !m.left_at)
           const mapped = filtered.map((m: any) => ({
@@ -76,6 +84,26 @@ export default function GroupPage() {
         })
     })
   }, [params?.groupId, router])
+
+  const handleSaveName = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSavingName(true)
+    setNameError('')
+
+    const formData = new FormData()
+    formData.append('group_id', params.groupId)
+    formData.append('name', groupName)
+    const result = await updateGroupName(formData)
+
+    if (result.error) {
+      setNameError(result.error)
+    } else {
+      setGroup((current) => current ? { ...current, name: groupName.trim() } : current)
+      setGroupName(groupName.trim())
+      setEditingName(false)
+    }
+    setSavingName(false)
+  }
 
   const handleInvite = async () => {
     if (!inviteEmail) return
@@ -116,9 +144,34 @@ export default function GroupPage() {
     return <div>Group not found</div>
   }
 
+  const isOwner = members.some((member) => member.user_id === userId && member.role === 'owner')
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{group.name}</h1>
+      {editingName ? (
+        <form onSubmit={handleSaveName} className="flex items-center gap-2">
+          <Input
+            aria-label="Group name"
+            value={groupName}
+            onChange={(event) => setGroupName(event.target.value)}
+            disabled={savingName}
+            maxLength={100}
+            autoFocus
+          />
+          <Button type="submit" size="icon" aria-label="Save group name" disabled={savingName}>
+            {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          </Button>
+          <Button type="button" variant="ghost" size="icon" aria-label="Cancel editing group name" onClick={() => { setGroupName(group.name); setNameError(''); setEditingName(false) }} disabled={savingName}>
+            <X className="h-4 w-4" />
+          </Button>
+        </form>
+      ) : (
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{group.name}</h1>
+          {isOwner && <Button type="button" variant="ghost" size="icon" aria-label="Edit group name" onClick={() => setEditingName(true)}><Pencil className="h-4 w-4" /></Button>}
+        </div>
+      )}
+      {nameError && <p className="text-sm text-destructive" role="alert">{nameError}</p>}
       <p className="text-muted-foreground">{group.description}</p>
 
       {/* Members */}
