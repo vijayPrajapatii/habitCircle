@@ -1,8 +1,13 @@
 -- 008_invitations_notifications.sql
 -- Group invitations and notifications
 
+-- Check if group_invitations table needs to be recreated with inviter_id column
+-- If table exists but missing inviter_id, we need to handle this
+-- For a clean slate, drop and recreate:
+drop table if exists public.group_invitations;
+
 -- Group Invitations
-create table if not exists public.group_invitations (
+create table public.group_invitations (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references public.groups(id) on delete cascade,
   email text not null,
