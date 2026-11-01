@@ -2,6 +2,34 @@
 -- Run this in Supabase Dashboard > SQL Editor
 -- This fixes the issue: "new row violates row-level security policy for table 'groups'"
 
+-- 0. Track which member owns each habit
+ALTER TABLE public.habits ADD COLUMN IF NOT EXISTS created_by UUID;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'habits_created_by_fkey'
+      AND conrelid = 'public.habits'::regclass
+  ) THEN
+    ALTER TABLE public.habits
+      ADD CONSTRAINT habits_created_by_fkey
+      FOREIGN KEY (created_by) REFERENCES public.profiles(id);
+  END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS habits_created_by_idx ON public.habits (created_by);
+
+DROP POLICY IF EXISTS "habits_insert_member" ON public.habits;
+CREATE POLICY "habits_insert_member" ON public.habits FOR INSERT WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.group_members
+    WHERE group_id = habits.group_id
+      AND user_id = auth.uid()
+      AND left_at IS NULL
+  )
+);
+
 -- 1. Fix groups INSERT policy
 -- Allows any authenticated user to create a group
 DROP POLICY IF EXISTS "groups_insert_authenticated" ON public.groups;
@@ -105,7 +133,8 @@ CREATE POLICY "group_members_select_self"
 
 -- 8. Allow group admins and owners to create habit schedules
 DROP POLICY IF EXISTS "habit_schedules_insert_admin" ON public.habit_schedules;
-CREATE POLICY "habit_schedules_insert_admin"
+DROP POLICY IF EXISTS "habit_schedules_insert_member" ON public.habit_schedules;
+CREATE POLICY "habit_schedules_insert_member"
   ON public.habit_schedules FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -115,9 +144,40 @@ CREATE POLICY "habit_schedules_insert_admin"
       WHERE h.id = habit_schedules.habit_id
         AND gm.user_id = auth.uid()
         AND gm.left_at IS NULL
-        AND gm.role IN ('owner', 'admin')
     )
   );
+
+-- Members may create the current occurrence for a habit in their group
+DROP POLICY IF EXISTS "habit_occurrences_insert_member" ON public.habit_occurrences;
+CREATE POLICY "habit_occurrences_insert_member"
+  ON public.habit_occurrences FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.habit_schedules hs
+      JOIN public.habits h ON h.id = hs.habit_id
+      JOIN public.group_members gm ON gm.group_id = h.group_id
+      WHERE hs.id = habit_occurrences.schedule_id
+        AND gm.user_id = auth.uid()
+        AND gm.left_at IS NULL
+    )
+  );
+
+-- A check-in must belong to the authenticated member
+DROP POLICY IF EXISTS "habit_checkins_insert_own" ON public.habit_checkins;
+CREATE POLICY "habit_checkins_insert_own" ON public.habit_checkins FOR INSERT WITH CHECK (
+  profile_id = auth.uid()
+  AND EXISTS (
+    SELECT 1
+    FROM public.habit_occurrences ho
+    JOIN public.habit_schedules hs ON hs.id = ho.schedule_id
+    JOIN public.habits h ON h.id = hs.habit_id
+    JOIN public.group_members gm ON gm.group_id = h.group_id
+    WHERE ho.id = habit_checkins.occurrence_id
+      AND gm.user_id = auth.uid()
+      AND gm.left_at IS NULL
+  )
+);
 
 -- 9. Owners may delete their groups
 DROP POLICY IF EXISTS "groups_delete_owner" ON public.groups;

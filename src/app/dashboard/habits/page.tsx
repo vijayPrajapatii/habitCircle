@@ -12,8 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { createHabit, getUserHabits } from '@/features/habits/actions'
-import { Plus, Target, Loader2 } from 'lucide-react'
+import { checkInHabit, createHabit, getUserHabits } from '@/features/habits/actions'
+import { Plus, Target, Loader2, CheckCircle2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
@@ -26,11 +26,20 @@ interface Group {
 interface Habit {
   id: string
   name: string
+  created_by: string | null
   frequency: string
   target_quantity: number
   checked_in: boolean
   group: { name: string }
   schedule: { frequency: string; target_quantity: number }
+  creator: { id: string; username: string } | null
+  checkins: {
+    id: string
+    profile_id: string
+    quantity: number
+    status: string
+    profile: { username: string } | null
+  }[]
   created_at: string
 }
 
@@ -39,8 +48,10 @@ export default function HabitsPage() {
   const [habits, setHabits] = useState<Habit[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [checkingIn, setCheckingIn] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -54,6 +65,7 @@ export default function HabitsPage() {
         router.push('/login')
         return
       }
+      setCurrentUserId(user.id)
 
       Promise.all([
         supabase
@@ -81,6 +93,23 @@ export default function HabitsPage() {
       })
     })
   }, [router])
+
+  const handleCheckIn = async (habitId: string) => {
+    setCheckingIn(habitId)
+    setError(null)
+    const result = await checkInHabit(habitId)
+    if (result.error) {
+      setError(result.error)
+    } else {
+      const refreshed = await getUserHabits()
+      if (refreshed.error) {
+        setError(refreshed.error)
+      } else {
+        setHabits((refreshed.habits || []) as unknown as Habit[])
+      }
+    }
+    setCheckingIn(null)
+  }
 
   const handleCreateHabit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -142,9 +171,35 @@ export default function HabitsPage() {
               <CardContent className="p-4">
                 <h3 className="font-semibold">{habit.name}</h3>
                 <p className="text-sm text-muted-foreground">{habit.group?.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Created by {habit.creator?.username || 'Unknown member'}
+                </p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {habit.schedule?.frequency} · target {habit.schedule?.target_quantity}
                 </p>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <Button
+                    size="sm"
+                    variant={habit.checkins.some(checkin => checkin.profile_id === currentUserId) ? 'secondary' : 'default'}
+                    onClick={() => handleCheckIn(habit.id)}
+                    disabled={checkingIn === habit.id || habit.checkins.some(checkin => checkin.profile_id === currentUserId)}
+                  >
+                    {checkingIn === habit.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {habit.checkins.some(checkin => checkin.profile_id === currentUserId) ? 'Checked in' : 'Check in'}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {habit.checkins.length} checked in
+                  </span>
+                </div>
+                {habit.checkins.length > 0 && (
+                  <div className="mt-3 space-y-1 border-t pt-3 text-xs text-muted-foreground">
+                    {habit.checkins.map(checkin => (
+                      <p key={checkin.id}>
+                        {checkin.profile?.username || 'Member'} checked in ({checkin.status})
+                      </p>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

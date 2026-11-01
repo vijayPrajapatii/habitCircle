@@ -1,5 +1,32 @@
 -- Basic creation flow fixes
 
+-- Track which member owns each habit.
+alter table public.habits add column if not exists created_by uuid;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'habits_created_by_fkey'
+      and conrelid = 'public.habits'::regclass
+  ) then
+    alter table public.habits
+      add constraint habits_created_by_fkey
+      foreign key (created_by) references public.profiles(id);
+  end if;
+end $$;
+
+create index if not exists habits_created_by_idx on public.habits (created_by);
+
+drop policy if exists "habits_insert_member" on public.habits;
+create policy "habits_insert_member" on public.habits for insert with check (
+  exists (
+    select 1 from public.group_members
+    where group_id = habits.group_id
+      and user_id = auth.uid()
+      and left_at is null
+  )
+);
+
 -- The membership read policy must not query group_members through its own RLS policy.
 drop policy if exists "group_members_select_member" on public.group_members;
 drop policy if exists "group_members_select_self" on public.group_members;
@@ -7,8 +34,10 @@ create policy "group_members_select_self"
   on public.group_members for select
   using (user_id = auth.uid());
 
--- Group admins may create schedules for habits in their groups.
-create policy "habit_schedules_insert_admin"
+-- Active group members may create schedules for habits in their groups.
+drop policy if exists "habit_schedules_insert_admin" on public.habit_schedules;
+drop policy if exists "habit_schedules_insert_member" on public.habit_schedules;
+create policy "habit_schedules_insert_member"
   on public.habit_schedules for insert
   with check (
     exists (
@@ -18,9 +47,40 @@ create policy "habit_schedules_insert_admin"
       where h.id = habit_schedules.habit_id
         and gm.user_id = auth.uid()
         and gm.left_at is null
-        and gm.role in ('owner', 'admin')
     )
   );
+
+-- Members may create the current occurrence for a habit in their group.
+drop policy if exists "habit_occurrences_insert_member" on public.habit_occurrences;
+create policy "habit_occurrences_insert_member"
+  on public.habit_occurrences for insert
+  with check (
+    exists (
+      select 1
+      from public.habit_schedules hs
+      join public.habits h on h.id = hs.habit_id
+      join public.group_members gm on gm.group_id = h.group_id
+      where hs.id = habit_occurrences.schedule_id
+        and gm.user_id = auth.uid()
+        and gm.left_at is null
+    )
+  );
+
+-- A check-in must belong to the authenticated member.
+drop policy if exists "habit_checkins_insert_own" on public.habit_checkins;
+create policy "habit_checkins_insert_own" on public.habit_checkins for insert with check (
+  profile_id = auth.uid()
+  and exists (
+    select 1
+    from public.habit_occurrences ho
+    join public.habit_schedules hs on hs.id = ho.schedule_id
+    join public.habits h on h.id = hs.habit_id
+    join public.group_members gm on gm.group_id = h.group_id
+    where ho.id = habit_checkins.occurrence_id
+      and gm.user_id = auth.uid()
+      and gm.left_at is null
+  )
+);
 
 -- Owners may delete their groups. Related records cascade through foreign keys.
 drop policy if exists "groups_delete_owner" on public.groups;
