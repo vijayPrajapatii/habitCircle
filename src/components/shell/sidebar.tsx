@@ -7,21 +7,28 @@ import {
   LayoutDashboard,
   Users,
   Target,
+  Activity,
+  Trophy,
+  Wallet,
+  Bell,
   Settings,
-  Menu,
   X,
   User,
   LogOut,
-  Loader2,
+  Menu,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME } from '@/config/brand'
 import { createClient } from '@/lib/supabase/client'
 
-const navigation = [
+const mainNavigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Groups', href: '/dashboard/groups', icon: Users },
   { name: 'Habits', href: '/dashboard/habits', icon: Target },
+  { name: 'Activity', href: '/dashboard/activity', icon: Activity },
+  { name: 'Leaderboard', href: '/dashboard/leaderboard', icon: Trophy },
+  { name: 'Ledger', href: '/dashboard/ledger', icon: Wallet },
+  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
 ]
 
 export function Sidebar() {
@@ -40,13 +47,10 @@ export function Sidebar() {
 
         if (user) {
           setUserEmail(user.email || '')
-
-          // Get display name from metadata or use email prefix as fallback
-          const metadataName = user.user_metadata?.full_name || user.user_metadata?.name
+          const metadataName = user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.username
           if (metadataName) {
             setUserName(metadataName)
           } else if (user.email) {
-            // Use email prefix as fallback
             setUserName(user.email.split('@')[0])
           }
         }
@@ -59,12 +63,11 @@ export function Sidebar() {
 
     fetchUser()
 
-    // Listen for auth state changes
     const { data: { subscription } } = createClient().auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         const user = session.user
         setUserEmail(user.email || '')
-        const metadataName = user.user_metadata?.full_name || user.user_metadata?.name
+        const metadataName = user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.username
         if (metadataName) {
           setUserName(metadataName)
         } else if (user.email) {
@@ -111,13 +114,16 @@ export function Sidebar() {
         )}
         aria-label="Main navigation"
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-border">
-          <Link href="/dashboard" className="font-bold text-xl text-foreground">
-            {APP_NAME}
+        {/* Brand Header */}
+        <div className="flex h-16 items-center justify-between px-5 border-b border-border">
+          <Link href="/dashboard" className="font-bold text-xl text-foreground flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-base">
+              H
+            </div>
+            <span>{APP_NAME}</span>
           </Link>
           <button
-            className="lg:hidden p-2 rounded-md hover:bg-accent"
+            className="lg:hidden p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
             onClick={() => setIsOpen(false)}
             aria-label="Close sidebar"
           >
@@ -125,26 +131,29 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto" role="navigation" aria-label="Main">
+        {/* Navigation list */}
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto" role="navigation" aria-label="Main">
           <ul className="space-y-1" role="list">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+            {mainNavigation.map((item) => {
+              const isExact = pathname === item.href
+              const isChild = item.href !== '/dashboard' && pathname.startsWith(item.href + '/')
+              const isActive = isExact || isChild
+
               return (
                 <li key={item.name}>
                   <Link
                     href={item.href}
                     onClick={() => setIsOpen(false)}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors min-h-[44px] items-center',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[42px]',
                       isActive
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     )}
                     aria-current={isActive ? 'page' : undefined}
                   >
-                    <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-                    {item.name}
+                    <item.icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                    <span>{item.name}</span>
                   </Link>
                 </li>
               )
@@ -152,53 +161,44 @@ export function Sidebar() {
           </ul>
         </nav>
 
-        {/* User section */}
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              {isLoading ? (
-                <div className="animate-pulse">
-                  <div className="h-4 w-24 bg-muted rounded"></div>
-                  <div className="h-3 w-32 mt-1 bg-muted rounded"></div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm font-medium truncate">{userName}</p>
-                  <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
-                </>
-              )}
-            </div>
-          </div>
+        {/* User Profile & Account Footer */}
+        <div className="p-3 border-t border-border space-y-1">
           <Link
             href="/dashboard/profile"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-accent transition-colors"
           >
-            <User className="h-5 w-5" />
-            Profile
+            <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
+              {userName.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-medium leading-none truncate text-foreground">{userName}</p>
+              <p className="text-[11px] text-muted-foreground truncate mt-1">{userEmail || 'My Account'}</p>
+            </div>
           </Link>
+
           <Link
             href="/dashboard/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
-            <Settings className="h-5 w-5" />
-            Settings
+            <Settings className="h-4 w-4" />
+            <span>Settings</span>
           </Link>
+
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground mt-2 w-full text-left"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors w-full text-left"
           >
-            <LogOut className="h-5 w-5" />
-            Sign Out
+            <LogOut className="h-4 w-4" />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* Mobile menu button */}
+      {/* Floating mobile menu trigger button */}
       <button
-        className="lg:hidden fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-50 p-3 rounded-full bg-primary text-primary-foreground shadow-lg"
+        className="lg:hidden fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 p-3 rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90 active:scale-95 transition-all"
         onClick={() => setIsOpen(true)}
         aria-label="Open menu"
         aria-expanded={isOpen}
