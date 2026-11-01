@@ -80,12 +80,6 @@ export async function getUserHabits(userId?: string): Promise<{ habits: Habit[] 
         frequency,
         target_quantity,
         custom_cron
-      ),
-      occurrences:habit_occurrences (
-        id,
-        period_start,
-        period_end,
-        status
       )
     `)
     .in('group_id', groupIds)
@@ -99,7 +93,8 @@ export async function getUserHabits(userId?: string): Promise<{ habits: Habit[] 
   const habits = (data as any[]).map(h => ({
     ...h,
     group: h.groups || h.group,
-    schedule: h.habit_schedules?.[0] || h.schedule
+    schedule: h.habit_schedules?.[0] || h.schedule,
+    occurrences: []
   }))
 
   return { habits: habits as Habit[], error: null }
@@ -145,12 +140,6 @@ export async function getGroupHabits(groupId: string): Promise<{ habits: Habit[]
         frequency,
         target_quantity,
         custom_cron
-      ),
-      occurrences:habit_occurrences (
-        id,
-        period_start,
-        period_end,
-        status
       )
     `)
     .eq('group_id', groupId)
