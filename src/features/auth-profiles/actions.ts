@@ -88,6 +88,42 @@ export async function signOut() {
   redirect('/login')
 }
 
+const resendSchema = z.object({
+  email: z.string().email(),
+})
+
+export async function resendVerification(formData: FormData) {
+  const supabase = await createClient()
+
+  const email = formData.get('email') as string
+  if (!email) {
+    return { error: 'Email is required' }
+  }
+
+  const result = resendSchema.safeParse({ email })
+  if (!result.success) {
+    return { error: 'Invalid email address' }
+  }
+
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: result.data.email,
+    options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`,
+    },
+  })
+
+  if (error) {
+    if (error.message.toLowerCase().includes('rate limit') || error.message.toLowerCase().includes('too many')) {
+      return { error: 'Too many requests. Please wait a few minutes before trying again.' }
+    }
+    return { error: 'Unable to resend verification email. Please try again later.' }
+  }
+
+  // Do not reveal if email is registered or not
+  return { success: 'If an account with that email exists and has not been confirmed, a verification email has been sent.' }
+}
+
 export async function resetPassword(formData: FormData) {
   const supabase = await createClient()
 

@@ -1,14 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { signIn } from '@/features/auth-profiles/actions'
+import { signIn, resendVerification } from '@/features/auth-profiles/actions'
 import { APP_NAME } from '@/config/brand'
 
 export default function LoginPage() {
@@ -18,10 +18,30 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState('')
+  const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false)
+  const [infoMessage, setInfoMessage] = useState('')
+
+  // Read message from URL on initial load
+  useEffect(() => {
+    // Check URL for messages
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      const message = url.searchParams.get('message')
+      if (message) {
+        setInfoMessage(message)
+        // Clean up URL
+        window.history.replaceState({}, document.title, '/login')
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setResendSuccess('')
+    setInfoMessage('')
     setLoading(true)
 
     const formData = new FormData()
@@ -31,13 +51,38 @@ export default function LoginPage() {
     const result = await signIn(formData)
 
     if (result?.error) {
-      setError(result.error)
+      const lowerError = result.error.toLowerCase()
+      if (lowerError.includes('email not confirmed')) {
+        setError(result.error)
+        setIsEmailNotConfirmed(true)
+      } else {
+        setError(result.error)
+      }
     } else {
       router.push('/dashboard')
       router.refresh()
     }
 
     setLoading(false)
+  }
+
+  const handleResendVerification = async () => {
+    setResendLoading(true)
+    setResendSuccess('')
+    setError('')
+
+    const formData = new FormData()
+    formData.append('email', email)
+
+    const result = await resendVerification(formData)
+
+    if (result?.success) {
+      setResendSuccess(result.success)
+    } else if (result?.error) {
+      setError(result.error)
+    }
+
+    setResendLoading(false)
   }
 
   return (
@@ -52,6 +97,13 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {infoMessage && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-blue-50 text-blue-700 text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {infoMessage}
+              </div>
+            )}
+
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -109,6 +161,25 @@ export default function LoginPage() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Sign In
             </Button>
+
+            {isEmailNotConfirmed && (
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleResendVerification}
+                disabled={resendLoading}
+              >
+                {resendLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {resendLoading ? 'Sending...' : 'Resend Verification Email'}
+              </Button>
+            )}
+
+            {resendSuccess && !resendLoading && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-green-50 text-green-700 text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {resendSuccess}
+              </div>
+            )}
           </form>
 
           <div className="relative my-6">
