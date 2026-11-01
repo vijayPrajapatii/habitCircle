@@ -22,6 +22,21 @@ create policy "habit_schedules_insert_admin"
     )
   );
 
+-- Owners may delete their groups. Related records cascade through foreign keys.
+drop policy if exists "groups_delete_owner" on public.groups;
+create policy "groups_delete_owner"
+  on public.groups for delete
+  using (
+    exists (
+      select 1
+      from public.group_members gm
+      where gm.group_id = groups.id
+        and gm.user_id = auth.uid()
+        and gm.left_at is null
+        and gm.role = 'owner'
+    )
+  );
+
 -- Create the group and its owner membership in one transaction.
 create or replace function public.create_group_with_owner(
   p_name text,

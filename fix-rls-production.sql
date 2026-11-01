@@ -119,7 +119,22 @@ CREATE POLICY "habit_schedules_insert_admin"
     )
   );
 
--- 9. Make group creation atomic and return the created group safely
+-- 9. Owners may delete their groups
+DROP POLICY IF EXISTS "groups_delete_owner" ON public.groups;
+CREATE POLICY "groups_delete_owner"
+  ON public.groups FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.group_members gm
+      WHERE gm.group_id = groups.id
+        AND gm.user_id = auth.uid()
+        AND gm.left_at IS NULL
+        AND gm.role = 'owner'
+    )
+  );
+
+-- 10. Make group creation atomic and return the created group safely
 CREATE OR REPLACE FUNCTION public.create_group_with_owner(
   p_name TEXT,
   p_description TEXT,
@@ -155,7 +170,7 @@ $$;
 REVOKE ALL ON FUNCTION public.create_group_with_owner(TEXT, TEXT, INTEGER, TEXT, TEXT, INTEGER) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_group_with_owner(TEXT, TEXT, INTEGER, TEXT, TEXT, INTEGER) TO authenticated;
 
--- 10. Fix the invitation RPC's enum-array type resolution
+-- 11. Fix the invitation RPC's enum-array type resolution
 CREATE OR REPLACE FUNCTION public.create_group_invitation(
   p_group_id UUID,
   p_created_by UUID,

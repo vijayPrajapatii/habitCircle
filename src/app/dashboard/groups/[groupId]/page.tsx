@@ -5,8 +5,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createInvitation } from '@/features/invitations/actions'
-import { updateGroupName } from '@/features/groups/actions'
-import { Users, Loader2, Send, Copy, AlertCircle, Pencil, Check, X } from 'lucide-react'
+import { deleteGroup, updateGroupName } from '@/features/groups/actions'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Users, Loader2, Send, Copy, AlertCircle, Pencil, Check, X, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
@@ -47,6 +55,9 @@ export default function GroupPage() {
   const [groupName, setGroupName] = useState('')
   const [savingName, setSavingName] = useState(false)
   const [nameError, setNameError] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     if (!params?.groupId) return
@@ -109,6 +120,22 @@ export default function GroupPage() {
       setEditingName(false)
     }
     setSavingName(false)
+  }
+
+  const handleDeleteGroup = async () => {
+    setDeleting(true)
+    setDeleteError('')
+
+    const formData = new FormData()
+    formData.append('group_id', params.groupId)
+    const result = await deleteGroup(formData)
+    if (result.error) {
+      setDeleteError(result.error)
+      setDeleting(false)
+      return
+    }
+
+    router.push('/dashboard/groups')
   }
 
   const handleInvite = async () => {
@@ -176,10 +203,14 @@ export default function GroupPage() {
       ) : (
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">{group.name}</h1>
-          {isOwner && <Button type="button" variant="ghost" size="icon" aria-label="Edit group name" onClick={() => setEditingName(true)}><Pencil className="h-4 w-4" /></Button>}
+          {isOwner && <>
+            <Button type="button" variant="ghost" size="icon" aria-label="Edit group name" onClick={() => setEditingName(true)}><Pencil className="h-4 w-4" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label="Delete group" onClick={() => { setDeleteError(''); setDeleteOpen(true) }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          </>}
         </div>
       )}
       {nameError && <p className="text-sm text-destructive" role="alert">{nameError}</p>}
+      {deleteError && <p className="text-sm text-destructive" role="alert">{deleteError}</p>}
       <p className="text-muted-foreground">{group.description}</p>
 
       {/* Members */}
@@ -247,6 +278,24 @@ export default function GroupPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {group.name}?</DialogTitle>
+            <DialogDescription>
+              This permanently removes the group, its members, habits, invitations, and related records.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+            <Button type="button" variant="destructive" onClick={handleDeleteGroup} disabled={deleting}>
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete group
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

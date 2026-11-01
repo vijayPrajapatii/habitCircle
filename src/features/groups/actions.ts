@@ -98,3 +98,46 @@ export async function updateGroupName(formData: FormData) {
 
   return { group }
 }
+
+const deleteGroupSchema = z.object({
+  group_id: z.string().uuid(),
+})
+
+export async function deleteGroup(formData: FormData) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Not authenticated' }
+  }
+
+  const result = deleteGroupSchema.safeParse({
+    group_id: formData.get('group_id'),
+  })
+  if (!result.success) {
+    return { error: result.error.errors[0].message }
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from('group_members')
+    .select('role')
+    .eq('group_id', result.data.group_id)
+    .eq('user_id', user.id)
+    .is('left_at', null)
+    .single()
+
+  if (membershipError || !membership || membership.role !== 'owner') {
+    return { error: 'Only the group owner can delete this group' }
+  }
+
+  const { error } = await supabase
+    .from('groups')
+    .delete()
+    .eq('id', result.data.group_id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  return { success: true }
+}
