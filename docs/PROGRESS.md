@@ -53,9 +53,13 @@
 - ✅ Habits are visible to all group members (RLS policy: habits_select_member)
 
 ### UI Cleanup (Phase 2 focus)
-- Removed: Activity Feed, Leaderboard, Financial Ledger, Notifications from navigation
-- Updated: Dashboard page to fetch real habits from database
-- Updated: Settings page (removed Notifications section)
+- Changed navigation labels: "My Groups" → "Groups", "My Habits" → "Habits"
+- Added full navigation menu to sidebar (Activity Feed, Leaderboard, Financial Ledger, Notifications)
+- Created new profile page at /dashboard/profile with editable fields
+- Updated Settings page to be a proper settings page (not disabled inputs)
+- Updated bottom navigation for mobile (Home, Groups, Habits, Profile)
+- Built full profile editing functionality with timezone select, save button, theme toggle
+- Added Profile and Settings as separate user section items in sidebar
 
 ### Completed / Verified
 - [x] Build verification - `npm run build` passes (TypeScript, compilation, static generation)
@@ -73,6 +77,15 @@ The fix:
 - Migration 012: `groups_insert_authenticated` allows any authenticated user to create groups
 - Migration 009 (updated): `group_members_insert_self` allows users to add themselves as members
 - Migration 014: Finalizes all RLS policies for group creation flow
+
+### Mobile UI Improvements (safe-ui-edit)
+- ✅ Added xs breakpoint (375px) to tailwind.config.ts for 375px viewport support
+- ✅ Updated dashboard/layout.tsx - improved mobile grid layout
+- ✅ Updated dashboard/page.tsx - responsive stats grid, compact habit rows, mobile-friendly typography
+- ✅ Updated groups/page.tsx - responsive buttons, touch-friendly cards, mobile-optimized empty state
+- ✅ Updated habits/page.tsx - responsive form layouts, mobile action buttons, truncated text for overflow
+- ✅ Added mobile-friendly CSS improvements (line clamp, truncate utilities)
+- Build passes: `pnpm build` ✓
 
 ### Pending / Next Steps
 - [ ] Run `supabase start` and `supabase db reset` to apply migrations

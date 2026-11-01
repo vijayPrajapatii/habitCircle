@@ -9,7 +9,7 @@ const navigation = [
   { name: 'Home', href: '/dashboard', icon: Home },
   { name: 'Groups', href: '/dashboard/groups', icon: Users },
   { name: 'Habits', href: '/dashboard/habits', icon: Target },
-  { name: 'Settings', href: '/dashboard/settings', icon: User },
+  { name: 'Profile', href: '/dashboard/profile', icon: User },
 ]
 
 export function BottomNav() {

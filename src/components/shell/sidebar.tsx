@@ -13,6 +13,9 @@ import {
   User,
   LogOut,
   Loader2,
+  Bell,
+  Trophy,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME } from '@/config/brand'
@@ -22,6 +25,10 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Groups', href: '/dashboard/groups', icon: Users },
   { name: 'Habits', href: '/dashboard/habits', icon: Target },
+  { name: 'Activity Feed', href: '/dashboard/activity', icon: Bell },
+  { name: 'Leaderboard', href: '/dashboard/leaderboard', icon: Trophy },
+  { name: 'Financial Ledger', href: '/dashboard/ledger', icon: Wallet },
+  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
@@ -173,8 +180,15 @@ export function Sidebar() {
             </div>
           </div>
           <Link
+            href="/dashboard/profile"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            <User className="h-5 w-5" />
+            Profile
+          </Link>
+          <Link
             href="/dashboard/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground mt-2"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
             <Settings className="h-5 w-5" />
             Settings
