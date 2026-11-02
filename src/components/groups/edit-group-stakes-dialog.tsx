@@ -44,12 +44,21 @@ export function EditGroupStakesDialog({
   group,
   onSuccess,
 }: EditGroupStakesDialogProps) {
-  const [name, setName] = useState(group.name)
+  // Guard against null/undefined group - use optional chaining for all properties
+  if (!group) {
+    return null
+  }
+
+  const [name, setName] = useState(group.name || '')
   const [description, setDescription] = useState(group.description || '')
   // Human readable major currency units (e.g. 500 for 50000 paise)
-  const [penaltyMajor, setPenaltyMajor] = useState((group.penalty_amount / 100).toFixed(0))
+  const [penaltyMajor, setPenaltyMajor] = useState(
+    (group.penalty_amount && group.penalty_amount > 0)
+      ? (group.penalty_amount / 100).toFixed(0)
+      : '100'
+  )
   const [currency, setCurrency] = useState(group.currency || 'INR')
-  const [maxMembers, setMaxMembers] = useState(group.max_members?.toString() || '10')
+  const [maxMembers, setMaxMembers] = useState((group.max_members || 10).toString())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
