@@ -13,6 +13,14 @@ export async function POST(request: Request) {
       )
     }
 
+    // Ensure we have a valid group object with required fields
+    if (!result.group || !result.group?.id) {
+      return NextResponse.json(
+        { error: 'Failed to create group - invalid response' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
       { group: result.group },
       { status: 201 }
@@ -20,7 +28,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error creating group:', error)
     return NextResponse.json(
-      { error: 'Failed to create group' },
+      { error: error instanceof Error ? error.message : 'Failed to create group' },
       { status: 500 }
     )
   }

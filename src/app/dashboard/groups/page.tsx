@@ -142,7 +142,7 @@ export default function GroupsPage() {
       })
       const result = await response.json()
 
-      if (result.group) {
+      if (result.group && result.group.id) {
         setGroups(current => [{ ...result.group, member_count: 1 }, ...current])
         setDialogOpen(false)
         resetForm()
@@ -151,8 +151,10 @@ export default function GroupsPage() {
           description: `"${formName.trim()}" is ready. Invite your friends!`,
         })
         router.push(`/dashboard/groups/${result.group.id}`)
+      } else if (result.error) {
+        setError(result.error)
       } else {
-        setError(result.error || 'Failed to create group')
+        setError('Failed to create group - no group returned')
       }
     } catch {
       setError('Something went wrong. Please try again.')
@@ -201,7 +203,7 @@ export default function GroupsPage() {
         </Card>
       ) : (
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map(group => (
+          {groups.filter(Boolean).map(group => (
             <Card key={group.id} className="transition-all hover:shadow-md hover:border-primary/40 touch-manipulation group/card">
               <Link
                 href={`/dashboard/groups/${group.id}`}
