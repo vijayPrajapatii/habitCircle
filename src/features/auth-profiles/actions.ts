@@ -43,6 +43,11 @@ export async function signUp(formData: FormData) {
     if (signUpError.message.toLowerCase().includes('rate limit') || signUpError.message.toLowerCase().includes('too many')) {
       return { error: 'Too many sign-up attempts. Please check your email for a confirmation link, or wait a few minutes before trying again.' }
     }
+    // The profile row is created by a database trigger; a duplicate username makes that
+    // trigger fail, and Supabase reports it with this generic message.
+    if (signUpError.message.toLowerCase().includes('database error saving new user')) {
+      return { error: 'That username is already taken. Please choose a different one.' }
+    }
     // Check for constraint violations
     if (signUpError.message.toLowerCase().includes('constraint') || signUpError.message.toLowerCase().includes('violates')) {
       return { error: 'Unable to create account. Please try a different username or email.' }
@@ -79,7 +84,9 @@ export async function signIn(formData: FormData) {
     return { error: error.message }
   }
 
-  redirect('/dashboard')
+  // No redirect() here: the login page navigates itself so it can honour a validated
+  // `redirectTo` (e.g. an invitation link opened while signed out).
+  return { success: true as const }
 }
 
 export async function signOut() {
