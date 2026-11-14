@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/hooks/use-toast'
 import { EditGroupStakesDialog } from '@/components/groups/edit-group-stakes-dialog'
+import { CURRENCY_SYMBOLS, formatMoneySafe, parseMajorUnits } from '@/domain/money'
 
 interface Group {
   id: string
@@ -31,6 +32,8 @@ interface Group {
   max_members: number
   created_at: string
   member_count: number
+  /** The signed-in member's role in this circle. */
+  role: string
 }
 
 function GroupsSkeleton() {
@@ -56,14 +59,15 @@ function GroupsSkeleton() {
 }
 
 function formatCurrency(currency: string): string {
-  const symbols: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' }
-  return symbols[currency] || currency
+  return CURRENCY_SYMBOLS[currency] || currency
 }
 
 export default function GroupsPage() {
   const router = useRouter()
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editGroup, setEditGroup] = useState<Group | null>(null)
   const [createLoading, setCreateLoading] = useState(false)
@@ -78,40 +82,55 @@ export default function GroupsPage() {
 
   useEffect(() => {
     const supabase = createClient()
+    let cancelled = false
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.push('/login')
-        return
+    const load = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
+
+        const { data, error: fetchError } = await supabase
+          .from('group_members' as any)
+          .select(`
+            role,
+            groups (id, name, description, penalty_amount, currency, max_members, created_at, group_members(id, left_at))
+          `)
+          .eq('user_id', user.id)
+          .is('left_at', null)
+          .order('joined_at', { ascending: false })
+
+        if (cancelled) return
+
+        if (fetchError) {
+          setLoadError(fetchError.message)
+          return
+        }
+
+        const flat: Group[] = (data as any[] | null)?.flatMap((membership: any) => {
+          const group = membership.groups
+          if (!group) return []
+          return [{
+            ...group,
+            role: membership.role,
+            // Members who have left are still returned by the embed.
+            member_count: (group.group_members ?? []).filter((m: any) => !m.left_at).length,
+          }]
+        }) || []
+        setGroups(flat)
+        setLoadError(null)
+      } catch {
+        if (!cancelled) setLoadError('Failed to load your circles')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
+    }
 
-      supabase
-        .from('group_members' as any)
-        .select(`
-          groups (id, name, description, penalty_amount, currency, max_members, created_at, group_members(id))
-        `)
-        .eq('user_id', user.id)
-        .is('left_at', null)
-        .order('joined_at', { ascending: false })
-        .then(({ data, error: fetchError }) => {
-          if (fetchError) {
-            setError(fetchError.message)
-            setLoading(false)
-            return
-          }
-          const flat: Group[] = (data as any[] | null)?.flatMap((g: any) => {
-            const group = g.groups
-            if (!group) return []
-            return [{
-              ...group,
-              member_count: group.group_members?.length || 0,
-            }]
-          }) || []
-          setGroups(flat)
-          setLoading(false)
-        })
-    })
-  }, [router])
+    load()
+    return () => { cancelled = true }
+  }, [router, reloadKey])
 
   const resetForm = () => {
     setFormName('')
@@ -124,13 +143,21 @@ export default function GroupsPage() {
 
   const handleCreateGroup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setCreateLoading(true)
     setError(null)
+
+    // Parse money exactly (no float math): "10.5" -> 1050 minor units.
+    const penaltyMinor = parseMajorUnits(formPenalty)
+    if (penaltyMinor === null || penaltyMinor <= 0) {
+      setError('Enter a penalty amount greater than zero, with at most 2 decimal places.')
+      return
+    }
+
+    setCreateLoading(true)
 
     const formData = new FormData()
     formData.append('name', formName.trim())
     formData.append('description', formDescription.trim())
-    formData.append('penalty_amount', String(Math.round(parseFloat(formPenalty) * 100)))
+    formData.append('penalty_amount', String(penaltyMinor))
     formData.append('currency', formCurrency)
     formData.append('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone)
     formData.append('max_members', formMaxMembers)
@@ -143,7 +170,7 @@ export default function GroupsPage() {
       const result = await response.json()
 
       if (result.group && result.group.id) {
-        setGroups(current => [{ ...result.group, member_count: 1 }, ...current])
+        setGroups(current => [{ ...result.group, member_count: 1, role: 'owner' }, ...current])
         setDialogOpen(false)
         resetForm()
         toast({
@@ -167,6 +194,22 @@ export default function GroupsPage() {
     return <GroupsSkeleton />
   }
 
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Circles</h1>
+        <Card className="border-destructive/50">
+          <CardContent className="py-6 sm:py-8 text-center px-4">
+            <p className="text-destructive mb-4 text-sm" role="alert">{loadError}</p>
+            <Button size="sm" onClick={() => { setLoadError(null); setLoading(true); setReloadKey(key => key + 1) }}>
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between gap-2">
@@ -179,7 +222,7 @@ export default function GroupsPage() {
         <Button
           onClick={() => { resetForm(); setDialogOpen(true) }}
           size="sm"
-          className="h-9 px-3 text-xs sm:text-sm flex-shrink-0"
+          className="h-10 sm:h-9 px-3 text-xs sm:text-sm flex-shrink-0"
           aria-label="Create new circle"
         >
           <Plus className="h-4 w-4 mr-1.5" />
@@ -204,24 +247,17 @@ export default function GroupsPage() {
       ) : (
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {groups.filter(Boolean).map(group => (
-            <Card key={group.id} className="transition-all hover:shadow-md hover:border-primary/40 touch-manipulation group/card">
+            <Card key={group.id} className="relative transition-all hover:shadow-md hover:border-primary/40 touch-manipulation group/card">
               <Link
                 href={`/dashboard/groups/${group.id}`}
                 className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 p-3.5 sm:p-4"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-sm sm:text-base truncate flex-1">{group.name}</h3>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); setEditGroup(group) }}
-                      className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={`Edit ${group.name} stakes`}
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </button>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-60 group-hover/card:opacity-100 group-hover/card:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
-                  </div>
+                  {/* Right padding leaves room for the owner-only settings button. */}
+                  <h3 className={`font-semibold text-sm sm:text-base truncate flex-1 ${group.role === 'owner' ? 'pr-10' : ''}`}>
+                    {group.name}
+                  </h3>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground opacity-60 group-hover/card:opacity-100 group-hover/card:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2 min-h-[32px]">
                   {group.description || 'No description provided.'}
@@ -231,10 +267,24 @@ export default function GroupsPage() {
                     {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
                   </span>
                   <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-                    {formatCurrency(group.currency)}{(group.penalty_amount / 100).toFixed(0)} / miss
+                    {formatMoneySafe(group.penalty_amount, group.currency)} / miss
                   </Badge>
                 </div>
               </Link>
+
+              {/* A sibling of the link, not a child: a button inside an anchor is
+                  invalid HTML and unreliable for keyboard and screen-reader users.
+                  Only the owner can change stakes, so only the owner sees it. */}
+              {group.role === 'owner' && (
+                <button
+                  type="button"
+                  onClick={() => setEditGroup(group)}
+                  className="absolute right-9 top-1.5 flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`Edit ${group.name} stakes`}
+                >
+                  <Settings2 className="h-4 w-4" />
+                </button>
+              )}
             </Card>
           ))}
         </div>
@@ -300,11 +350,12 @@ export default function GroupsPage() {
                   <Input
                     id="group-penalty"
                     type="number"
+                    inputMode="decimal"
                     value={formPenalty}
                     onChange={(e) => setFormPenalty(e.target.value)}
                     className="pl-8 h-10 text-sm"
-                    min="1"
-                    step="1"
+                    min="0.01"
+                    step="0.01"
                     required
                   />
                 </div>

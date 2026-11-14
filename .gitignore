@@ -45,3 +45,6 @@ client_secret_*.json
 
 # Mockup/preview images
 images/
+
+# TypeScript incremental build info
+tsconfig.tsbuildinfo

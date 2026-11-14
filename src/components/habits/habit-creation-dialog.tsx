@@ -458,7 +458,7 @@ export function HabitCreationDialog({
                   timeWindow === 'morning' ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted/40'
                 }`}
               >
-                <Sun className="h-4 w-4 mb-1 text-amber-500" />
+                <Sun className="h-4 w-4 mb-1 text-amber-800 dark:text-amber-400" />
                 <p className="text-xs font-medium">Morning</p>
                 <p className="text-[10px] text-muted-foreground">by 09:00 AM</p>
               </button>

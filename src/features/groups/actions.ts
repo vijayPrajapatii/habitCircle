@@ -2,15 +2,30 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { SUPPORTED_CURRENCIES } from '@/domain/money'
+import { isValidTimezone } from '@/domain/scheduling'
+
+// Only currencies the app can format and display. There is no conversion.
+const currencySchema = z.enum(SUPPORTED_CURRENCIES, {
+  errorMap: () => ({ message: 'Choose one of the supported currencies' }),
+})
 
 const createGroupSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
   description: z.string().max(500).optional(),
-  penalty_amount: z.number().int().positive('Penalty must be positive'),
-  currency: z.string().length(3).default('INR'),
-  timezone: z.string().default('UTC'),
-  max_members: z.number().int().min(2).max(50).default(10),
+  penalty_amount: z.number({ invalid_type_error: 'Enter a valid penalty amount' }).int().positive('Penalty must be positive'),
+  currency: currencySchema.default('INR'),
+  timezone: z.string().default('UTC').refine(isValidTimezone, 'Invalid timezone'),
+  max_members: z.number({ invalid_type_error: 'Max members must be a number' }).int().min(2, 'A circle needs at least 2 members').max(50, 'A circle can have at most 50 members').default(10),
 })
+
+/** Maps low-level database errors on delete to something a person can act on. */
+function friendlyDeleteError(message: string): string {
+  if (/ledger entries cannot be (updated|deleted)/i.test(message)) {
+    return "This circle has recorded penalties, so it can't be deleted. The ledger is permanent."
+  }
+  return message
+}
 
 export async function createGroup(formData: FormData) {
   const supabase = await createClient()
@@ -24,8 +39,8 @@ export async function createGroup(formData: FormData) {
     name: formData.get('name'),
     description: formData.get('description') || '',
     penalty_amount: parseInt(formData.get('penalty_amount') as string, 10),
-    currency: formData.get('currency') as string,
-    timezone: formData.get('timezone') as string,
+    currency: (formData.get('currency') as string) || undefined,
+    timezone: (formData.get('timezone') as string) || undefined,
     max_members: parseInt(formData.get('max_members') as string, 10),
   }
 
@@ -61,9 +76,9 @@ const updateGroupSettingsSchema = z.object({
   group_id: z.string().uuid(),
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
   description: z.string().max(500).optional().default(''),
-  penalty_amount: z.number().int().positive('Penalty must be positive'),
-  currency: z.string().length(3).default('INR'),
-  max_members: z.number().int().min(2).max(50).default(10),
+  penalty_amount: z.number({ invalid_type_error: 'Enter a valid penalty amount' }).int().positive('Penalty must be positive'),
+  currency: currencySchema.default('INR'),
+  max_members: z.number({ invalid_type_error: 'Max members must be a number' }).int().min(2, 'A circle needs at least 2 members').max(50, 'A circle can have at most 50 members').default(10),
 })
 
 export async function updateGroupSettings(formData: FormData) {
@@ -100,6 +115,17 @@ export async function updateGroupSettings(formData: FormData) {
 
   if (membershipError || !membership || membership.role !== 'owner') {
     return { error: 'Only the circle owner can edit circle stakes and settings' }
+  }
+
+  // Capacity must not drop below the people already in the circle.
+  const { count: activeMembers } = await supabase
+    .from('group_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('group_id', result.data.group_id)
+    .is('left_at', null)
+
+  if (activeMembers != null && result.data.max_members < activeMembers) {
+    return { error: `This circle already has ${activeMembers} members, so capacity can't be set below that.` }
   }
 
   const { data: group, error } = await supabase
@@ -202,7 +228,7 @@ export async function deleteGroup(formData: FormData) {
     .eq('id', result.data.group_id)
 
   if (error) {
-    return { error: error.message }
+    return { error: friendlyDeleteError(error.message) }
   }
 
   return { success: true }

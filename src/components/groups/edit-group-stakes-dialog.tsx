@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { updateGroupSettings } from '@/features/groups/actions'
 import { toast } from '@/hooks/use-toast'
-import { CURRENCY_SYMBOLS, formatMoney } from '@/domain/money'
+import { CURRENCY_SYMBOLS, minorToMajorInput, parseMajorUnits } from '@/domain/money'
 import { Settings2, Loader2, Coins, ShieldCheck, Users } from 'lucide-react'
 
 interface EditGroupStakesDialogProps {
@@ -38,23 +38,32 @@ const SUPPORTED_CURRENCIES = [
   { code: 'GBP', label: 'GBP (£) - British Pound' },
 ]
 
-export function EditGroupStakesDialog({
+/**
+ * Guard wrapper. Hooks must run unconditionally, so the "no group selected"
+ * early return lives here and all state lives in the keyed inner form. The key
+ * also resets the form when a different circle is opened.
+ */
+export function EditGroupStakesDialog(props: Omit<EditGroupStakesDialogProps, 'group'> & {
+  group: EditGroupStakesDialogProps['group'] | null | undefined
+}) {
+  if (!props.group) {
+    return null
+  }
+  return <EditGroupStakesForm key={props.group.id} {...props} group={props.group} />
+}
+
+function EditGroupStakesForm({
   open,
   onOpenChange,
   group,
   onSuccess,
 }: EditGroupStakesDialogProps) {
-  // Guard against null/undefined group - use optional chaining for all properties
-  if (!group) {
-    return null
-  }
-
   const [name, setName] = useState(group.name || '')
   const [description, setDescription] = useState(group.description || '')
-  // Human readable major currency units (e.g. 500 for 50000 paise)
+  // Human readable major currency units (e.g. "500" for 50000 minor units)
   const [penaltyMajor, setPenaltyMajor] = useState(
-    (group.penalty_amount && group.penalty_amount > 0)
-      ? (group.penalty_amount / 100).toFixed(0)
+    group.penalty_amount && group.penalty_amount > 0
+      ? minorToMajorInput(group.penalty_amount)
       : '100'
   )
   const [currency, setCurrency] = useState(group.currency || 'INR')
@@ -73,13 +82,13 @@ export function EditGroupStakesDialog({
       return
     }
 
-    const numPenalty = parseFloat(penaltyMajor)
-    if (isNaN(numPenalty) || numPenalty <= 0) {
-      setError('Penalty stake must be a positive number')
+    // Exact decimal parsing: never float-multiply money.
+    const minorUnits = parseMajorUnits(penaltyMajor)
+    if (minorUnits === null || minorUnits <= 0) {
+      setError('Penalty stake must be greater than zero, with at most 2 decimal places')
       return
     }
 
-    const minorUnits = Math.round(numPenalty * 100)
     const membersInt = parseInt(maxMembers, 10)
     if (isNaN(membersInt) || membersInt < 2 || membersInt > 50) {
       setError('Maximum members must be between 2 and 50')
@@ -106,7 +115,7 @@ export function EditGroupStakesDialog({
 
     toast({
       title: 'Circle settings updated!',
-      description: `Stakes set to ${symbol}${numPenalty} per miss.`,
+      description: `Stakes set to ${symbol}${penaltyMajor.trim()} per miss.`,
     })
 
     setSubmitting(false)
@@ -175,7 +184,7 @@ export function EditGroupStakesDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="edit-penalty-stake" className="text-xs font-semibold flex items-center gap-1">
-                <Coins className="h-3.5 w-3.5 text-amber-500" />
+                <Coins className="h-3.5 w-3.5 text-amber-800 dark:text-amber-400" />
                 Stake per Miss *
               </Label>
               <div className="relative">
@@ -185,8 +194,9 @@ export function EditGroupStakesDialog({
                 <Input
                   id="edit-penalty-stake"
                   type="number"
-                  min="1"
-                  step="any"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
                   value={penaltyMajor}
                   onChange={(e) => setPenaltyMajor(e.target.value)}
                   className="pl-8 text-sm font-semibold h-10"

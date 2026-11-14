@@ -9,6 +9,7 @@ import {
   ALL_CHECKIN_STATUSES,
   ALL_PENALTY_STATUSES,
   ALL_PAYMENT_STATUSES,
+  isCompletedCheckin,
 } from './checkin-state'
 
 describe('Checkin state transitions', () => {
@@ -69,5 +70,18 @@ describe('Payment state transitions', () => {
   it('allows rejected payment to transition back to pending for resubmission', () => {
     expect(canTransitionPayment('rejected', 'pending')).toBe(true)
     expect(canTransitionPayment('rejected', 'confirmed')).toBe(false)
+  })
+})
+
+describe('isCompletedCheckin', () => {
+  it('counts submitted and verified check-ins as completed', () => {
+    expect(isCompletedCheckin('submitted')).toBe(true)
+    expect(isCompletedCheckin('verified')).toBe(true)
+  })
+
+  it('never counts missed, pending, disputed, excused or unknown statuses', () => {
+    for (const status of ['missed', 'pending', 'disputed', 'excused', 'bogus']) {
+      expect(isCompletedCheckin(status)).toBe(false)
+    }
   })
 })

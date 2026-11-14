@@ -48,6 +48,14 @@ const config: Config = {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
       },
+      // `text-destructive` must be readable against the page in both themes,
+      // while `bg-destructive` keeps the stronger surface colour. Extending
+      // textColor.destructive replaces the colour group for text utilities, so
+      // the foreground variant is restated to keep `text-destructive-foreground`.
+      textColor: {
+        destructive: "hsl(var(--destructive-text))",
+        "destructive-foreground": "hsl(var(--destructive-foreground))",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

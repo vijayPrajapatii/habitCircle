@@ -9,17 +9,40 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/hooks/use-toast'
 
+type NotificationKind = 'reminder' | 'penalty' | 'invite' | 'system'
+
 interface NotificationItem {
   id: string
   created_at: string
   title: string
   message: string
-  type: 'reminder' | 'penalty' | 'invite' | 'system'
+  type: NotificationKind
   read: boolean
+}
+
+/** Maps the stored notification_type (payload.type) to the icon/colour family. */
+function kindFromPayloadType(type: unknown): NotificationKind {
+  switch (type) {
+    case 'daily_reminder':
+    case 'upcoming_deadline':
+    case 'weekly_report':
+      return 'reminder'
+    case 'missed_commitment':
+    case 'new_penalty':
+    case 'payment_request':
+    case 'payment_confirmation':
+      return 'penalty'
+    case 'invitation':
+    case 'new_member':
+      return 'invite'
+    default:
+      return 'system'
+  }
 }
 
 export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
 
   const loadNotifications = useCallback(async () => {
@@ -28,51 +51,36 @@ export default function NotificationsPage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        setLoading(false)
         return
       }
 
-      // Check if notifications table exists and has rows
       const { data, error } = await supabase
         .from('notifications' as any)
         .select('*')
         .eq('profile_id', user.id)
         .order('created_at', { ascending: false })
+        .limit(100)
 
-      if (!error && data && data.length > 0) {
-        const mapped: NotificationItem[] = data.map((n: any) => ({
+      if (error) {
+        setLoadError(error.message)
+        return
+      }
+
+      // Only real notifications are shown. An empty inbox renders the empty state.
+      setNotifications(
+        ((data as any[] | null) ?? []).map((n: any) => ({
           id: n.id,
           created_at: n.created_at,
           title: n.payload?.title || 'Notification',
           message: n.payload?.message || '',
-          type: n.channel || 'system',
+          type: kindFromPayloadType(n.payload?.type),
           read: Boolean(n.read_at),
-        }))
-        setNotifications(mapped)
-      } else {
-        // Provide contextual notifications if table has no entries yet
-        setNotifications([
-          {
-            id: 'welcome-notif',
-            created_at: new Date().toISOString(),
-            title: 'Welcome to HabitCircle!',
-            message: 'Create or join a circle to start tracking your daily habits with friends.',
-            type: 'system',
-            read: false,
-          },
-          {
-            id: 'reminder-tip',
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-            title: 'Daily Check-in Reminder',
-            message: 'Don\'t forget to submit your check-in before the grace period ends to avoid penalties.',
-            type: 'reminder',
-            read: false,
-          },
-        ])
-      }
-
-      setLoading(false)
+        })),
+      )
+      setLoadError(null)
     } catch {
+      setLoadError('Failed to load notifications')
+    } finally {
       setLoading(false)
     }
   }, [])
@@ -81,22 +89,51 @@ export default function NotificationsPage() {
     loadNotifications()
   }, [loadNotifications])
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    const previous = notifications
     setNotifications(current => current.map(n => ({ ...n, read: true })))
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('notifications' as any)
+      .update({ read_at: new Date().toISOString() })
+      .in('id', previous.filter(n => !n.read).map(n => n.id))
+
+    if (error) {
+      // Persisting failed: roll back so the UI never claims more than the server knows.
+      setNotifications(previous)
+      toast({ title: 'Could not mark as read', description: error.message, variant: 'destructive' })
+      return
+    }
+
     toast({
       title: 'All marked as read',
       description: 'Your notifications inbox has been cleared.',
     })
   }
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
+    const target = notifications.find(n => n.id === id)
+    if (!target || target.read) return
+
     setNotifications(current => current.map(n => n.id === id ? { ...n, read: true } : n))
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('notifications' as any)
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      setNotifications(current => current.map(n => n.id === id ? { ...n, read: false } : n))
+      toast({ title: 'Could not mark as read', description: error.message, variant: 'destructive' })
+    }
   }
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-44" />
+      <div className="space-y-4 sm:space-y-6">
+        <Skeleton className="h-7 w-44 sm:h-8" />
         <div className="space-y-3">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
         </div>
@@ -104,21 +141,37 @@ export default function NotificationsPage() {
     )
   }
 
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Notifications</h1>
+        <Card className="border-destructive/50">
+          <CardContent className="py-6 sm:py-8 text-center px-4">
+            <p className="text-destructive mb-4 text-sm" role="alert">{loadError}</p>
+            <Button size="sm" onClick={() => { setLoadError(null); setLoading(true); loadNotifications() }}>
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Notifications</h1>
-          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Notifications</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Check-in reminders, group invites, and habit milestones.
           </p>
         </div>
 
         {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={markAllAsRead}>
+          <Button variant="outline" size="sm" onClick={markAllAsRead} className="h-10 sm:h-9">
             <CheckCheck className="h-4 w-4 mr-1.5" />
             Mark all read
           </Button>
@@ -147,54 +200,60 @@ export default function NotificationsPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2.5">
-            {notifications.map(item => (
-              <div
-                key={item.id}
-                onClick={() => markAsRead(item.id)}
-                className={`flex items-start justify-between p-3.5 rounded-lg border transition-colors cursor-pointer ${
-                  !item.read ? 'bg-primary/5 border-primary/30' : 'bg-card hover:bg-muted/40'
-                }`}
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                    item.type === 'reminder'
-                      ? 'bg-amber-500/10 text-amber-500'
-                      : item.type === 'penalty'
-                        ? 'bg-destructive/10 text-destructive'
-                        : 'bg-primary/10 text-primary'
-                  }`}>
-                    {item.type === 'reminder' ? (
-                      <Calendar className="h-4 w-4" />
-                    ) : item.type === 'penalty' ? (
-                      <AlertCircle className="h-4 w-4" />
-                    ) : (
-                      <Info className="h-4 w-4" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm leading-none">{item.title}</p>
-                      {!item.read && (
-                        <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+          <CardContent>
+            <ul className="space-y-2.5">
+              {notifications.map(item => (
+                <li key={item.id}>
+                  {/* A real button: keyboard-focusable and announced as one. */}
+                  <button
+                    type="button"
+                    onClick={() => markAsRead(item.id)}
+                    aria-label={`${item.read ? '' : 'Unread: '}${item.title}${item.read ? '' : '. Activate to mark as read'}`}
+                    className={`flex w-full items-start gap-3 p-3.5 rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      !item.read ? 'bg-primary/5 border-primary/30' : 'bg-card hover:bg-muted/40 cursor-default'
+                    }`}
+                  >
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                      item.type === 'reminder'
+                        ? 'bg-amber-500/10 text-amber-800 dark:text-amber-400'
+                        : item.type === 'penalty'
+                          ? 'bg-destructive/10 text-destructive'
+                          : 'bg-primary/10 text-primary'
+                    }`}>
+                      {item.type === 'reminder' ? (
+                        <Calendar className="h-4 w-4" aria-hidden="true" />
+                      ) : item.type === 'penalty' ? (
+                        <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Info className="h-4 w-4" aria-hidden="true" />
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                      {item.message}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-2">
-                      {new Date(item.created_at).toLocaleString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm leading-tight break-words">{item.title}</p>
+                        {!item.read && (
+                          <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0" aria-hidden="true" />
+                        )}
+                      </div>
+                      {item.message && (
+                        <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed break-words">
+                          {item.message}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground mt-2">
+                        {new Date(item.created_at).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}

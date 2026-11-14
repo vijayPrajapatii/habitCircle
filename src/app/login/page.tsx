@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { signIn, resendVerification } from '@/features/auth-profiles/actions'
 import { APP_NAME } from '@/config/brand'
+import { safeRedirectPath } from '@/lib/redirect'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -29,7 +30,9 @@ export default function LoginPage() {
       const message = url.searchParams.get('message')
       if (message) {
         setInfoMessage(message)
-        window.history.replaceState({}, document.title, '/login')
+        // Drop only `message`; keep `redirectTo` so the post-login destination survives.
+        url.searchParams.delete('message')
+        window.history.replaceState({}, document.title, url.pathname + url.search)
       }
     }
   }, [])
@@ -39,10 +42,11 @@ export default function LoginPage() {
     setError('')
     setResendSuccess('')
     setInfoMessage('')
+    setIsEmailNotConfirmed(false)
     setLoading(true)
 
     const formData = new FormData()
-    formData.append('email', email)
+    formData.append('email', email.trim())
     formData.append('password', password)
 
     const result = await signIn(formData)
@@ -56,7 +60,9 @@ export default function LoginPage() {
         setError(result.error)
       }
     } else {
-      router.push('/dashboard')
+      // Only same-origin paths are honoured; anything else falls back to the dashboard.
+      const target = safeRedirectPath(new URL(window.location.href).searchParams.get('redirectTo'))
+      router.push(target)
       router.refresh()
     }
 
@@ -95,7 +101,7 @@ export default function LoginPage() {
         <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-3.5">
             {infoMessage && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-blue-500/10 text-blue-500 text-xs sm:text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-blue-500/10 text-blue-800 dark:text-blue-400 text-xs sm:text-sm">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>{infoMessage}</span>
               </div>
@@ -146,7 +152,7 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 min-h-[32px] min-w-[32px] flex items-center justify-center"
+                  className="absolute right-0 top-0 h-10 w-10 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -160,8 +166,11 @@ export default function LoginPage() {
               Sign In
             </Button>
 
+            {/* type="button": a Button defaults to "submit", which inside this
+                form would ALSO fire a sign-in attempt on every resend click. */}
             {isEmailNotConfirmed && (
               <Button
+                type="button"
                 variant="outline"
                 className="w-full gap-2 h-10 text-xs sm:text-sm"
                 onClick={handleResendVerification}
@@ -173,7 +182,7 @@ export default function LoginPage() {
             )}
 
             {resendSuccess && !resendLoading && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/10 text-green-500 text-xs">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/10 text-green-800 dark:text-green-400 text-xs">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>{resendSuccess}</span>
               </div>

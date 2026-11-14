@@ -28,13 +28,13 @@ export default function LandingPage() {
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/login"
-              className="text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-md"
+              className="inline-flex min-h-[40px] items-center text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-2.5 rounded-md"
             >
               Sign In
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-sm"
+              className="inline-flex min-h-[40px] items-center justify-center gap-1.5 px-3 sm:px-4 text-xs sm:text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-sm"
             >
               <span>Get Started</span>
               <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -80,15 +80,15 @@ export default function LandingPage() {
             {/* Quick Guarantees */}
             <div className="mt-10 sm:mt-12 pt-6 sm:pt-8 border-t border-border/40 flex flex-col xs:flex-row flex-wrap justify-center items-center gap-3 sm:gap-6 text-[11px] sm:text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5">
-                <Check className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                <Check className="h-3.5 w-3.5 text-green-800 dark:text-green-400 flex-shrink-0" />
                 <span>Zero Custody Virtual Ledger</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Check className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                <Check className="h-3.5 w-3.5 text-green-800 dark:text-green-400 flex-shrink-0" />
                 <span>100% Peer Accountability</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Check className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                <Check className="h-3.5 w-3.5 text-green-800 dark:text-green-400 flex-shrink-0" />
                 <span>Deterministic Fair Split</span>
               </div>
             </div>
@@ -137,7 +137,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={Shield}
               title="Zero-Custody Architecture"
-              description="HabitCircle tracks obligations without touching banking rails. Members settle directly peer-to-peer with total privacy."
+              description={`${APP_NAME} tracks obligations without touching banking rails. Members settle directly peer-to-peer with total privacy.`}
             />
           </div>
         </div>
@@ -167,9 +167,9 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground text-center sm:text-left">
           <p>© {new Date().getFullYear()} {APP_NAME}. Social habit accountability.</p>
           <div className="flex items-center gap-4 sm:gap-6">
-            <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
-            <Link href="/signup" className="hover:text-foreground transition-colors">Create Account</Link>
-            <Link href="/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
+            <Link href="/login" className="inline-block py-2 hover:text-foreground transition-colors">Sign In</Link>
+            <Link href="/signup" className="inline-block py-2 hover:text-foreground transition-colors">Create Account</Link>
+            <Link href="/dashboard" className="inline-block py-2 hover:text-foreground transition-colors">Dashboard</Link>
           </div>
         </div>
       </footer>

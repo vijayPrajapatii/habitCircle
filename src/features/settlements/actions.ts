@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
-import { allocatePenalty, createPenaltySnapshot } from '@/domain/penalties'
 
 export interface PeerSettlementBalance {
   peerId: string
@@ -63,175 +62,25 @@ export async function recordHabitFailure(
     return { success: false, error: 'Not authenticated' }
   }
 
-  // 1. Try atomic RPC first
-  try {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('record_habit_miss', {
-      p_habit_id: habitId,
-      p_notes: notes || null,
-    })
-
-    if (!rpcError && rpcData?.success) {
-      return { success: true, error: null }
-    }
-  } catch {
-    // Fall back to direct query implementation
+  if (!z.string().uuid().safeParse(habitId).success) {
+    return { success: false, error: 'Invalid habit' }
   }
 
-  // 2. Direct fallback implementation
-  try {
-    const { data: habit, error: habitError } = await supabase
-      .from('habits' as any)
-      .select('id, group_id, name, timezone, habit_schedules(id), groups(id, penalty_amount, currency)')
-      .eq('id', habitId)
-      .single()
+  // The whole miss (check-in, penalty, allocations, ledger debit) is ONE database transaction.
+  // There is deliberately no client-side fallback: it could not be atomic, and the client has
+  // no write access to the money tables.
+  const { data, error } = await supabase.rpc('record_habit_miss', {
+    p_habit_id: habitId,
+    p_notes: notes || null,
+  })
 
-    if (habitError || !habit) {
-      return { success: false, error: 'Habit not found' }
-    }
-
-    const group = (habit as any).groups
-    const scheduleId = (habit as any).habit_schedules?.[0]?.id
-
-    if (!group || !scheduleId) {
-      return { success: false, error: 'Habit configuration incomplete' }
-    }
-
-    // Verify membership
-    const { data: membership } = await supabase
-      .from('group_members')
-      .select('id')
-      .eq('group_id', habit.group_id)
-      .eq('user_id', user.id)
-      .is('left_at', null)
-      .single()
-
-    if (!membership) {
-      return { success: false, error: 'Not authorized for this circle' }
-    }
-
-    // Occurrence
-    const periodStart = new Date()
-    periodStart.setUTCHours(0, 0, 0, 0)
-    const periodEnd = new Date(periodStart)
-    periodEnd.setUTCDate(periodEnd.getUTCDate() + 1)
-
-    let { data: occurrence } = await supabase
-      .from('habit_occurrences' as any)
-      .select('id')
-      .eq('schedule_id', scheduleId)
-      .eq('period_start', periodStart.toISOString())
-      .maybeSingle()
-
-    if (!occurrence) {
-      const created = await supabase
-        .from('habit_occurrences' as any)
-        .insert({
-          schedule_id: scheduleId,
-          period_start: periodStart.toISOString(),
-          period_end: periodEnd.toISOString(),
-          status: 'pending',
-        })
-        .select('id')
-        .single()
-
-      occurrence = created.data
-    }
-
-    if (!occurrence) {
-      return { success: false, error: 'Failed to create occurrence' }
-    }
-
-    // Insert or update checkin
-    let checkinId: string | null = null
-    const { data: existingCheckin } = await supabase
-      .from('habit_checkins' as any)
-      .select('id')
-      .eq('occurrence_id', occurrence.id)
-      .eq('profile_id', user.id)
-      .maybeSingle()
-
-    if (existingCheckin) {
-      await supabase
-        .from('habit_checkins' as any)
-        .update({ status: 'missed' })
-        .eq('id', existingCheckin.id)
-      checkinId = existingCheckin.id
-    } else {
-      const created = await supabase
-        .from('habit_checkins' as any)
-        .insert({
-          occurrence_id: occurrence.id,
-          profile_id: user.id,
-          quantity: 0,
-          status: 'missed',
-        })
-        .select('id')
-        .single()
-      checkinId = created.data?.id || null
-    }
-
-    if (!checkinId) {
-      return { success: false, error: 'Failed to record missed checkin' }
-    }
-
-    // Eligible peers
-    const { data: peers } = await supabase
-      .from('group_members')
-      .select('user_id')
-      .eq('group_id', habit.group_id)
-      .neq('user_id', user.id)
-      .is('left_at', null)
-
-    const peerIds = (peers || []).map((p: any) => p.user_id)
-    const penaltySnapshot = createPenaltySnapshot({
-      penaltyAmount: group.penalty_amount,
-      target: 1,
-      actual: 0,
-      eligibleMembers: peerIds,
-      currency: group.currency,
-    })
-
-    // Insert penalty
-    const { data: penalty, error: penaltyError } = await supabase
-      .from('penalties' as any)
-      .insert({
-        occurrence_id: checkinId,
-        offender_id: user.id,
-        amount: group.penalty_amount,
-        status: 'active',
-        snapshot: penaltySnapshot,
-      })
-      .select('id')
-      .single()
-
-    if (penalty && peerIds.length > 0) {
-      const allocations = allocatePenalty(group.penalty_amount, peerIds)
-      const rows = allocations.map(a => ({
-        penalty_id: penalty.id,
-        receiver_id: a.receiverId,
-        share: a.share,
-      }))
-
-      await supabase.from('penalty_allocations' as any).insert(rows)
-    }
-
-    // Ledger debit entry
-    await supabase.from('ledger_entries' as any).insert({
-      group_id: habit.group_id,
-      type: 'debit',
-      amount: group.penalty_amount,
-      related_penalty_id: penalty?.id || null,
-      metadata: {
-        offender_id: user.id,
-        habit_name: habit.name,
-        reason: notes || 'Missed habit check-in',
-      },
-    })
-
-    return { success: true, error: null }
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to record failure' }
+  if (error) {
+    return { success: false, error: error.message }
   }
+  if (!data?.success) {
+    return { success: false, error: 'Failed to record failure' }
+  }
+  return { success: true, error: null }
 }
 
 /**
@@ -534,83 +383,65 @@ export async function recordSettlement(
 
   const { receiver_id, group_id, amount, payment_method, notes } = result.data
 
-  // 1. Try atomic RPC first
-  try {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('record_peer_settlement', {
-      p_receiver_id: receiver_id,
-      p_group_id: group_id,
-      p_amount: amount,
-      p_method: payment_method,
-      p_notes: notes || null,
-    })
+  // Atomic database function only (no client-side fallback, see recordHabitFailure). It creates
+  // a PENDING payment: only the recipient's confirmation completes it.
+  const { data, error } = await supabase.rpc('record_peer_settlement', {
+    p_receiver_id: receiver_id,
+    p_group_id: group_id,
+    p_amount: amount,
+    p_method: payment_method,
+    p_notes: notes || null,
+  })
 
-    if (!rpcError && rpcData?.success) {
-      return { success: true, payment: rpcData }
-    }
-  } catch {
-    // Continue to fallback
+  if (error) {
+    return { success: false, error: error.message }
+  }
+  if (!data?.success) {
+    return { success: false, error: 'Failed to record settlement' }
+  }
+  return { success: true, payment: data }
+}
+
+const paymentIdSchema = z.string().uuid('Invalid payment')
+
+/**
+ * Recipient confirms they received a payment. Only the recipient can do this; the database
+ * writes the ledger entry in the same transaction.
+ */
+export async function confirmPayment(
+  paymentId: string
+): Promise<{ success: boolean; error?: string }> {
+  return decidePayment('confirm_payment', paymentId)
+}
+
+/** Recipient rejects a payment claim (nothing is written to the ledger). */
+export async function rejectPayment(
+  paymentId: string
+): Promise<{ success: boolean; error?: string }> {
+  return decidePayment('reject_payment', paymentId)
+}
+
+async function decidePayment(
+  fn: 'confirm_payment' | 'reject_payment',
+  paymentId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Not authenticated' }
   }
 
-  // 2. Direct query fallback
-  try {
-    const evidence = JSON.stringify({
-      method: payment_method,
-      notes: notes || '',
-      settled_at: new Date().toISOString(),
-    })
-
-    const { data: payment, error: paymentError } = await supabase
-      .from('payments' as any)
-      .insert({
-        sender_id: user.id,
-        receiver_id,
-        group_id,
-        amount,
-        status: 'confirmed',
-        evidence_path: evidence,
-      })
-      .select()
-      .single()
-
-    if (paymentError) {
-      return { success: false, error: paymentError.message }
-    }
-
-    // Ledger adjustment
-    await supabase.from('ledger_entries' as any).insert({
-      group_id,
-      type: 'adjust',
-      amount,
-      related_payment_id: payment.id,
-      metadata: {
-        settlement: true,
-        sender_id: user.id,
-        receiver_id,
-        method: payment_method,
-        notes,
-      },
-    })
-
-    // Mark active penalties as paid
-    const { data: myPenalties } = await supabase
-      .from('penalties' as any)
-      .select('id, allocations:penalty_allocations(receiver_id)')
-      .eq('offender_id', user.id)
-      .eq('status', 'active')
-
-    const penaltyIdsToClose = (myPenalties || [])
-      .filter((p: any) => (p.allocations || []).some((a: any) => a.receiver_id === receiver_id))
-      .map((p: any) => p.id)
-
-    if (penaltyIdsToClose.length > 0) {
-      await supabase
-        .from('penalties' as any)
-        .update({ status: 'paid' })
-        .in('id', penaltyIdsToClose)
-    }
-
-    return { success: true, payment }
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to record settlement' }
+  const parsed = paymentIdSchema.safeParse(paymentId)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0].message }
   }
+
+  const { data, error } = await supabase.rpc(fn, { p_payment_id: parsed.data })
+  if (error) {
+    return { success: false, error: error.message }
+  }
+  if (!data?.success) {
+    return { success: false, error: 'Could not update the payment' }
+  }
+  return { success: true }
 }

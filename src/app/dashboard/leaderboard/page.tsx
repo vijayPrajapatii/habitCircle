@@ -5,7 +5,9 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Trophy, Medal, Sparkles } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { isCompletedCheckin } from '@/domain/checkin-state'
 
 interface LeaderboardMember {
   userId: string
@@ -18,6 +20,7 @@ interface LeaderboardMember {
 
 export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [leaders, setLeaders] = useState<LeaderboardMember[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
@@ -25,22 +28,31 @@ export default function LeaderboardPage() {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) setCurrentUserId(user.id)
+      if (!user) {
+        setLoading(false)
+        return
+      }
+      setCurrentUserId(user.id)
 
-      const { data: memberships } = await supabase
+      const { data: memberships, error: membershipError } = await supabase
         .from('group_members' as any)
         .select('group_id')
-        .eq('user_id', user?.id || '')
+        .eq('user_id', user.id)
         .is('left_at', null)
+
+      if (membershipError) {
+        setLoadError(membershipError.message)
+        return
+      }
 
       const groupIds = (memberships as any[] | null)?.map(m => m.group_id) || []
 
       if (!groupIds.length) {
-        setLoading(false)
+        setLeaders([])
         return
       }
 
-      const { data: allMembers } = await supabase
+      const { data: allMembers, error: membersError } = await supabase
         .from('group_members' as any)
         .select(`
           user_id,
@@ -49,12 +61,15 @@ export default function LeaderboardPage() {
         .in('group_id', groupIds)
         .is('left_at', null)
 
+      if (membersError) {
+        setLoadError(membersError.message)
+        return
+      }
+
       const uniqueUserMap = new Map<string, string>()
-      if (allMembers) {
-        for (const m of allMembers as any[]) {
-          if (m.profiles?.id) {
-            uniqueUserMap.set(m.profiles.id, m.profiles.username || 'Member')
-          }
+      for (const m of (allMembers as any[] | null) ?? []) {
+        if (m.profiles?.id) {
+          uniqueUserMap.set(m.profiles.id, m.profiles.username || 'Member')
         }
       }
 
@@ -63,10 +78,18 @@ export default function LeaderboardPage() {
         .select('id, created_by')
         .in('group_id', groupIds)
 
-      const { data: checkins } = await supabase
+      // Rank by completion only (never by money). Completed = submitted or
+      // verified; misses lower the completion rate.
+      const { data: checkins, error: checkinsError } = await supabase
         .from('habit_checkins' as any)
         .select('id, profile_id, status')
-        .eq('status', 'submitted')
+        .in('profile_id', Array.from(uniqueUserMap.keys()))
+        .in('status', ['submitted', 'verified', 'missed'])
+
+      if (checkinsError) {
+        setLoadError(checkinsError.message)
+        return
+      }
 
       const memberStats: LeaderboardMember[] = []
 
@@ -74,15 +97,17 @@ export default function LeaderboardPage() {
         const userHabits = (habits as any[] | null)?.filter(h => h.created_by === uid) || []
         const userCheckins = (checkins as any[] | null)?.filter(c => c.profile_id === uid) || []
 
-        const habitsCount = Math.max(1, userHabits.length)
-        const checkinsCount = userCheckins.length
-        const score = Math.min(100, Math.round((checkinsCount / habitsCount) * 100))
+        const completed = userCheckins.filter(c => isCompletedCheckin(c.status)).length
+        const missed = userCheckins.length - completed
+        // Completion rate: completed / (completed + missed). Capped by
+        // construction at 100 and 0 when there is nothing to measure yet.
+        const score = completed + missed > 0 ? Math.round((completed / (completed + missed)) * 100) : 0
 
         memberStats.push({
           userId: uid,
           username: uname,
           totalHabits: userHabits.length,
-          totalCheckins: checkinsCount,
+          totalCheckins: completed,
           consistencyScore: score,
           rank: 1,
         })
@@ -92,8 +117,10 @@ export default function LeaderboardPage() {
 
       const ranked = memberStats.map((m, idx) => ({ ...m, rank: idx + 1 }))
       setLeaders(ranked)
-      setLoading(false)
+      setLoadError(null)
     } catch {
+      setLoadError('Failed to load the leaderboard')
+    } finally {
       setLoading(false)
     }
   }, [])
@@ -116,6 +143,22 @@ export default function LeaderboardPage() {
     )
   }
 
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Leaderboard</h1>
+        <Card className="border-destructive/50">
+          <CardContent className="py-6 sm:py-8 text-center px-4">
+            <p className="text-destructive mb-4 text-sm" role="alert">{loadError}</p>
+            <Button size="sm" onClick={() => { setLoadError(null); setLoading(true); loadLeaderboard() }}>
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -128,7 +171,7 @@ export default function LeaderboardPage() {
 
       {/* Fair play banner */}
       <div className="flex items-center gap-2 p-2.5 sm:p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs sm:text-sm text-foreground">
-        <Sparkles className="h-4 w-4 text-amber-500 flex-shrink-0" />
+        <Sparkles className="h-4 w-4 text-amber-800 dark:text-amber-400 flex-shrink-0" />
         <span className="text-[11px] sm:text-xs">
           <strong>Fair Play Rule:</strong> Rankings are strictly based on consistency and completed check-ins. Money is never used to rank members.
         </span>
@@ -172,10 +215,10 @@ export default function LeaderboardPage() {
               {leaders[0] && (
                 <Card className="text-center border-amber-500/40 bg-amber-500/5 -mt-1 sm:-mt-2 overflow-hidden shadow-sm">
                   <CardContent className="p-2 sm:p-4 pt-4 sm:pt-6">
-                    <div className="inline-flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-500 mb-1">
+                    <div className="inline-flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-400 mb-1">
                       <Trophy className="h-4 w-4 sm:h-5 sm:w-5" />
                     </div>
-                    <p className="text-[10px] sm:text-xs font-bold text-amber-500 uppercase">#1</p>
+                    <p className="text-[10px] sm:text-xs font-bold text-amber-800 dark:text-amber-400 uppercase">#1</p>
                     <p className="font-bold text-xs sm:text-sm mt-0.5 truncate">
                       {leaders[0].username}
                     </p>
@@ -248,7 +291,7 @@ export default function LeaderboardPage() {
 
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs sm:text-sm font-semibold">{member.totalCheckins} check-ins</p>
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground">{member.consistencyScore}% score</p>
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground">{member.consistencyScore}% completion</p>
                   </div>
                 </div>
               ))}

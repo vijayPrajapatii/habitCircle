@@ -169,6 +169,48 @@ export function calculatePeriodBounds(
 }
 
 /**
+ * Returns true when `timezone` is a valid IANA timezone name understood by
+ * the runtime (e.g. "Asia/Kolkata"). Fixed offsets such as "+05:30" are rejected.
+ */
+export function isValidTimezone(timezone: string): boolean {
+  if (typeof timezone !== 'string' || timezone.trim() === '' || /^[+-]\d/.test(timezone)) {
+    return false;
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns true when two timestamps refer to the same instant.
+ *
+ * Postgres/PostgREST serialise `timestamptz` as `2026-11-14T00:00:00+00:00`
+ * while `Date#toISOString()` yields `2026-11-14T00:00:00.000Z`. Comparing those
+ * as strings never matches, so always compare instants.
+ */
+export function isSameInstant(a: string | Date, b: string | Date): boolean {
+  const left = new Date(a).getTime();
+  const right = new Date(b).getTime();
+  return !Number.isNaN(left) && left === right;
+}
+
+/**
+ * The daily period (midnight to midnight in the habit's own timezone) that
+ * contains `now`. Falls back to UTC when the timezone is missing or invalid so a
+ * bad value can never throw while rendering.
+ */
+export function getCurrentDailyPeriod(
+  timezone: string | null | undefined,
+  now: Date = new Date(),
+): { start: Date; end: Date } {
+  const tz = timezone && isValidTimezone(timezone) ? timezone : 'UTC';
+  return calculatePeriodBounds('daily', now, tz);
+}
+
+/**
  * Returns true if `now` falls within `graceHours` after `periodEnd`.
  */
 export function isWithinGracePeriod(

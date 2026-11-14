@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Bell, CheckCircle2, Calendar } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { isCompletedCheckin } from '@/domain/checkin-state'
 
 interface ActivityEvent {
   id: string
@@ -15,11 +17,22 @@ interface ActivityEvent {
   subtitle: string
   timestamp: string
   badgeText: string
-  badgeVariant: 'success' | 'default' | 'secondary'
+  badgeVariant: 'success' | 'default' | 'secondary' | 'destructive' | 'warning'
+}
+
+/** Words for each check-in status, so a miss never reads as "checked in". */
+function describeCheckin(status: string): { verb: string; badge: string; variant: ActivityEvent['badgeVariant'] } {
+  if (status === 'verified') return { verb: 'had a check-in verified', badge: 'Verified', variant: 'success' }
+  if (isCompletedCheckin(status)) return { verb: 'checked in', badge: 'Check-in', variant: 'success' }
+  if (status === 'missed') return { verb: 'missed a check-in', badge: 'Missed', variant: 'destructive' }
+  if (status === 'disputed') return { verb: 'has a disputed check-in', badge: 'Disputed', variant: 'warning' }
+  if (status === 'excused') return { verb: 'was excused', badge: 'Excused', variant: 'secondary' }
+  return { verb: 'has a pending check-in', badge: 'Pending', variant: 'secondary' }
 }
 
 export default function ActivityPage() {
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [activities, setActivities] = useState<ActivityEvent[]>([])
 
   const loadActivity = useCallback(async () => {
@@ -28,24 +41,28 @@ export default function ActivityPage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        setLoading(false)
         return
       }
 
-      const { data: userGroups } = await supabase
+      const { data: userGroups, error: groupsError } = await supabase
         .from('group_members' as any)
         .select('group_id')
         .eq('user_id', user.id)
         .is('left_at', null)
 
-      const groupIds = (userGroups as any[] | null)?.map(g => g.group_id) || []
-
-      if (!groupIds.length) {
-        setLoading(false)
+      if (groupsError) {
+        setLoadError(groupsError.message)
         return
       }
 
-      const { data: habitsData } = await supabase
+      const groupIds = (userGroups as any[] | null)?.map(g => g.group_id) || []
+
+      if (!groupIds.length) {
+        setActivities([])
+        return
+      }
+
+      const { data: habitsData, error: habitsError } = await supabase
         .from('habits' as any)
         .select(`
           id,
@@ -55,19 +72,43 @@ export default function ActivityPage() {
         `)
         .in('group_id', groupIds)
 
-      const scheduleIds = (habitsData as any[] | null)?.map(h => h.schedule?.[0]?.id).filter(Boolean) || []
+      if (habitsError) {
+        setLoadError(habitsError.message)
+        return
+      }
+
+      // schedule id -> habit name, so each event can say WHICH habit it is about.
+      const habitNameByScheduleId = new Map<string, string>()
+      for (const habit of (habitsData as any[] | null) ?? []) {
+        // To-many embeds arrive as arrays, but tolerate a single object too.
+        const schedules = Array.isArray(habit.schedule) ? habit.schedule : habit.schedule ? [habit.schedule] : []
+        for (const schedule of schedules) {
+          habitNameByScheduleId.set(schedule.id, habit.name)
+        }
+      }
+      const scheduleIds = Array.from(habitNameByScheduleId.keys())
 
       let checkinsList: any[] = []
+      const habitNameByOccurrenceId = new Map<string, string>()
       if (scheduleIds.length > 0) {
-        const { data: occurrences } = await supabase
+        const { data: occurrences, error: occurrencesError } = await supabase
           .from('habit_occurrences' as any)
           .select('id, schedule_id')
           .in('schedule_id', scheduleIds)
 
-        const occIds = (occurrences as any[] | null)?.map(o => o.id) || []
+        if (occurrencesError) {
+          setLoadError(occurrencesError.message)
+          return
+        }
+
+        for (const occ of (occurrences as any[] | null) ?? []) {
+          const name = habitNameByScheduleId.get(occ.schedule_id)
+          if (name) habitNameByOccurrenceId.set(occ.id, name)
+        }
+        const occIds = Array.from(habitNameByOccurrenceId.keys())
 
         if (occIds.length > 0) {
-          const { data: checkins } = await supabase
+          const { data: checkins, error: checkinsError } = await supabase
             .from('habit_checkins' as any)
             .select(`
               id,
@@ -80,30 +121,39 @@ export default function ActivityPage() {
             .order('created_at', { ascending: false })
             .limit(20)
 
-          if (checkins) {
-            checkinsList = checkins
+          if (checkinsError) {
+            setLoadError(checkinsError.message)
+            return
           }
+
+          checkinsList = checkins ?? []
         }
       }
 
-      const events: ActivityEvent[] = checkinsList.map(c => ({
-        id: c.id,
-        type: 'checkin',
-        title: `${c.profile?.username || 'Member'} checked in`,
-        subtitle: `Status: ${c.status}`,
-        timestamp: new Date(c.created_at).toLocaleString(undefined, {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        badgeText: 'Check-in',
-        badgeVariant: 'success',
-      }))
+      const events: ActivityEvent[] = checkinsList.map(c => {
+        const description = describeCheckin(c.status)
+        const habitName = habitNameByOccurrenceId.get(c.occurrence_id)
+        return {
+          id: c.id,
+          type: 'checkin',
+          title: `${c.profile?.username || 'Member'} ${description.verb}`,
+          subtitle: habitName ? `"${habitName}"` : `Status: ${c.status}`,
+          timestamp: new Date(c.created_at).toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          badgeText: description.badge,
+          badgeVariant: description.variant,
+        }
+      })
 
       setActivities(events)
-      setLoading(false)
+      setLoadError(null)
     } catch {
+      setLoadError('Failed to load activity')
+    } finally {
       setLoading(false)
     }
   }, [])
@@ -128,6 +178,22 @@ export default function ActivityPage() {
     )
   }
 
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Activity Feed</h1>
+        <Card className="border-destructive/50">
+          <CardContent className="py-6 sm:py-8 text-center px-4">
+            <p className="text-destructive mb-4 text-sm" role="alert">{loadError}</p>
+            <Button size="sm" onClick={() => { setLoadError(null); setLoading(true); loadActivity() }}>
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
@@ -148,7 +214,7 @@ export default function ActivityPage() {
             <div className="flex justify-center">
               <Link
                 href="/dashboard/habits"
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="inline-flex min-h-[44px] items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 Submit a Check-in

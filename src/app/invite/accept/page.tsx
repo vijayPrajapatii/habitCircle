@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Users, Loader2, AlertCircle, CheckCircle2, Link2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -30,9 +30,14 @@ function AcceptInviteContent({ router, searchParams }: { router: ReturnType<type
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
   const [groupName, setGroupName] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
+  // Accepting is a one-shot action: React strict mode (dev) runs effects twice, and the second
+  // call would fail with "Already a member" right after the first one succeeded.
+  const startedRef = useRef(false)
 
   useEffect(() => {
+    if (startedRef.current) return
+    startedRef.current = true
+
     const acceptInvite = async () => {
       const code = searchParams.get('code')
       const token = searchParams.get('token')
@@ -46,12 +51,30 @@ function AcceptInviteContent({ router, searchParams }: { router: ReturnType<type
       try {
         const supabase = createClient()
 
+        // Invitations can only be accepted while signed in. Send visitors to the login page and
+        // bring them straight back to this link afterwards.
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          const back = `/invite/accept?${searchParams.toString()}`
+          router.replace(`/login?redirectTo=${encodeURIComponent(back)}`)
+          return
+        }
+
         const { data, error } = await supabase.rpc('accept_group_invitation', {
           p_code: code,
           p_link_token: token,
         })
 
         if (error) {
+          if (/already a member/i.test(error.message)) {
+            setStatus('success')
+            setMessage("You're already a member of this group.")
+            setTimeout(() => {
+              router.push('/dashboard/groups')
+              router.refresh()
+            }, 2000)
+            return
+          }
           throw error
         }
 
@@ -121,7 +144,7 @@ function AcceptInviteContent({ router, searchParams }: { router: ReturnType<type
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/10">
-            <CheckCircle2 className="h-7 w-7 text-green-500" />
+            <CheckCircle2 className="h-7 w-7 text-green-800 dark:text-green-400" />
           </div>
           <CardTitle className="text-2xl">Welcome to the group!</CardTitle>
           <CardDescription>{message}</CardDescription>

@@ -167,7 +167,7 @@ function OnboardingContent() {
             )}
 
             {success && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/10 text-green-500 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/10 text-green-800 dark:text-green-400 text-sm">
                 <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                 Profile saved! Redirecting...
               </div>

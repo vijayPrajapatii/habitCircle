@@ -105,4 +105,25 @@ The product name is configurable (`src/config/brand.ts` + `NEXT_PUBLIC_APP_NAME`
 
 ## Commands
 
-Fill this section in during Phase 1 and keep it accurate: dev, build, typecheck, lint, test, `supabase start`, `supabase db reset`, `supabase test db`, `supabase gen types`, e2e.
+Run from the repo root. Package manager is pnpm (there is no `package-lock.json`).
+
+| Task | Command |
+|---|---|
+| Dev server (http://localhost:3000) | `pnpm dev` |
+| Production build | `pnpm build` |
+| Typecheck | `pnpm typecheck` |
+| Unit tests (Vitest, `src/domain`, `src/lib`) | `pnpm test` |
+| Lint | `pnpm lint` is **currently broken**: it runs `next lint`, which Next 16 removed. Fix pending an ESLint decision (see `docs/PROGRESS.md`) |
+| Start local Supabase (needs Docker + WSL2) | `supabase start` |
+| Rebuild local DB from migrations + seed | `supabase db reset` (local only) |
+| pgTAP tests | `supabase test db` |
+| Regenerate DB types | `supabase gen types typescript --linked > src/types/supabase.ts` (read-only, no Docker) or `--local` |
+| Re-check production security (read-only in effect) | `supabase db query --linked -f supabase/verify/security_simulation.sql` → expect `SIM 44P 0F 0M` (shown as an error by design) |
+| Playwright e2e | not set up yet |
+
+**Remote project safety.** `.env.local` and the linked project point at the production Supabase project.
+`pnpm dev` therefore reads and writes production data. Never run `supabase db push` (production migration
+history only lists 001-004 although 005-016 were applied by hand, so it would re-run them), `db reset --linked`
+or `supabase link` without the owner's explicit approval. Read-only inspection is fine:
+`supabase db query --linked "select ..."`, `supabase migration list --linked`, `supabase db advisors --linked`.
+Apply a reviewed migration with `supabase db query --linked -f <file>`, never by pasting SQL ad hoc.

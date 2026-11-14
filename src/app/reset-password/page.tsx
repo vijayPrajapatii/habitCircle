@@ -2,33 +2,47 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 
 function ResetPasswordContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [validToken, setValidToken] = useState(true)
+  const [checking, setChecking] = useState(true)
+  const [validToken, setValidToken] = useState(false)
 
+  // A reset link is valid when it produced a session. The PKCE flow puts only `?code=` in the
+  // URL (there is no `type=recovery`), and the Supabase browser client exchanges that code for
+  // a session when it initialises, so getSession() resolves once the exchange has finished.
+  // An expired or already-used link yields no session.
   useEffect(() => {
-    const code = searchParams.get('code')
-    const type = searchParams.get('type')
-    if (!code || type !== 'recovery') {
-      setValidToken(false)
+    let active = true
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (!active) return
+        setValidToken(Boolean(data.session))
+        setChecking(false)
+      })
+      .catch(() => {
+        if (!active) return
+        setValidToken(false)
+        setChecking(false)
+      })
+    return () => {
+      active = false
     }
-  }, [searchParams])
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,7 +61,7 @@ function ResetPasswordContent() {
     setLoading(true)
 
     try {
-      const supabase = (await import('@/lib/supabase/client')).createClient()
+      const supabase = createClient()
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
       setSuccess(true)
@@ -56,6 +70,15 @@ function ResetPasswordContent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-background px-4" role="status" aria-live="polite">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+        <span className="sr-only">Checking your reset link…</span>
+      </div>
+    )
   }
 
   if (!validToken) {
@@ -85,7 +108,7 @@ function ResetPasswordContent() {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/10">
-              <CheckCircle2 className="h-7 w-7 text-green-500" />
+              <CheckCircle2 className="h-7 w-7 text-green-800 dark:text-green-400" />
             </div>
             <CardTitle className="text-2xl">Password updated</CardTitle>
             <CardDescription>Your password has been successfully reset.</CardDescription>
@@ -136,8 +159,9 @@ function ResetPasswordContent() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-0 top-0 h-10 w-10 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

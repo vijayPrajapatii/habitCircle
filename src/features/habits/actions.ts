@@ -2,15 +2,33 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { getCurrentDailyPeriod, isSameInstant, isValidTimezone } from '@/domain/scheduling'
+import { isCompletedCheckin } from '@/domain/checkin-state'
 
 const createHabitSchema = z.object({
-  group_id: z.string().uuid(),
-  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  group_id: z.string().uuid('Invalid circle'),
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
   frequency: z.enum(['daily', 'weekly', 'monthly', 'quantity', 'custom']),
-  target_quantity: z.number().int().positive().default(1),
-  timezone: z.string().default('UTC'),
-  custom_cron: z.string().optional().nullable(),
+  target_quantity: z
+    .number({ invalid_type_error: 'Target must be a whole number between 1 and 100' })
+    .int('Target must be a whole number between 1 and 100')
+    .min(1, 'Target must be a whole number between 1 and 100')
+    .max(100, 'Target must be a whole number between 1 and 100')
+    .default(1),
+  timezone: z
+    .string()
+    .default('UTC')
+    .refine(isValidTimezone, 'Invalid timezone'),
+  custom_cron: z.string().max(100).optional().nullable(),
 })
+
+/** Maps low-level database errors on delete to something a person can act on. */
+function friendlyDeleteError(message: string, subject: string): string {
+  if (/ledger entries cannot be (updated|deleted)/i.test(message)) {
+    return `This ${subject} has recorded penalties, so it can't be deleted. The ledger is permanent.`
+  }
+  return message
+}
 
 export interface Habit {
   id: string
@@ -52,6 +70,28 @@ export interface Habit {
   }[]
 }
 
+/** An embedded relation arrives as an array (to-many) or an object (to-one). */
+function firstOf<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
+/**
+ * Flatten the embedded `group` and `schedule` of a habits row.
+ *
+ * `habit_schedules.habit_id` is not unique, so PostgREST returns the
+ * `schedule:habit_schedules(...)` embed as an ARRAY. Leaving it as an array made
+ * `habit.schedule.id` undefined, which silently disabled every check-in lookup
+ * and showed each habit as "daily, target 1".
+ */
+function normalizeHabitRow(row: any) {
+  return {
+    ...row,
+    group: firstOf(row.group ?? row.groups),
+    schedule: firstOf(row.schedule ?? row.habit_schedules),
+  }
+}
+
 async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClient>>, habits: any[]) {
   const creatorIds = habits.map(habit => habit.created_by).filter(Boolean)
   const { data: creators } = creatorIds.length
@@ -60,7 +100,7 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
   const creatorsById = new Map((creators || []).map(creator => [creator.id, creator]))
 
   const scheduleIds = habits
-    .map(habit => habit.schedule?.id || habit.habit_schedules?.[0]?.id)
+    .map(habit => habit.schedule?.id)
     .filter(Boolean)
   if (!scheduleIds.length) {
     return habits.map(habit => ({
@@ -71,33 +111,40 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
     }))
   }
 
-  // Calculate current period start/end in UTC (used for daily habits)
-  // For weekly/monthly, the occurrence logic is more complex
+  // The current period is midnight-to-midnight in each habit's OWN timezone
+  // (a habit snapshots its timezone at creation), not UTC.
   const now = new Date()
-  const utcPeriodStart = new Date(now)
-  utcPeriodStart.setUTCHours(0, 0, 0, 0)
-  const utcPeriodEnd = new Date(utcPeriodStart)
-  utcPeriodEnd.setUTCDate(utcPeriodEnd.getUTCDate() + 1)
+  const periodStartByScheduleId = new Map<string, Date>()
+  for (const habit of habits) {
+    const scheduleId = habit.schedule?.id
+    if (scheduleId) {
+      periodStartByScheduleId.set(scheduleId, getCurrentDailyPeriod(habit.timezone, now).start)
+    }
+  }
+  const distinctPeriodStarts = Array.from(
+    new Set(Array.from(periodStartByScheduleId.values()).map(start => start.toISOString())),
+  )
 
+  // Only fetch occurrences that fall in a current period. This keeps the query
+  // bounded as history grows and avoids ever showing a previous period's
+  // check-in as if it were today's.
   const { data: occurrences } = await supabase
     .from('habit_occurrences' as any)
     .select('id, schedule_id, period_start, period_end, status')
     .in('schedule_id', scheduleIds)
-    .order('period_start', { ascending: false })
+    .in('period_start', distinctPeriodStarts)
 
-  // Build a map of current period occurrences for each schedule
+  // PostgREST returns "+00:00" timestamps while Date#toISOString() returns "Z",
+  // so compare instants, never strings.
   const currentPeriodOccurrences = new Map<string, any>()
-  if (occurrences) {
-    for (const occ of occurrences) {
-      // Check if this occurrence matches the current UTC period
-      if (occ.period_start === utcPeriodStart.toISOString()) {
-        currentPeriodOccurrences.set(occ.schedule_id, occ)
-      }
+  for (const occ of (occurrences as any[] | null) || []) {
+    const expectedStart = periodStartByScheduleId.get(occ.schedule_id)
+    if (expectedStart && isSameInstant(occ.period_start, expectedStart)) {
+      currentPeriodOccurrences.set(occ.schedule_id, occ)
     }
   }
 
-  // Get all occurrence IDs to fetch checkins
-  const occurrenceIds = (occurrences as any[] | null)?.map(occurrence => occurrence.id) || []
+  const occurrenceIds = Array.from(currentPeriodOccurrences.values()).map(occurrence => occurrence.id)
   const { data: checkins } = occurrenceIds.length
     ? await supabase
       .from('habit_checkins' as any)
@@ -120,11 +167,9 @@ async function addCurrentActivity(supabase: Awaited<ReturnType<typeof createClie
   }
 
   return habits.map(habit => {
-    const schedule = habit.schedule || habit.habit_schedules?.[0]
-    const scheduleId = schedule?.id
-    // Use current period occurrence if available, otherwise fall back to most recent
-    const currentOccurrence = scheduleId ? currentPeriodOccurrences.get(scheduleId) : null
-    const occurrence = currentOccurrence || (occurrences as any[] | null)?.find(item => item.schedule_id === schedule?.id)
+    const scheduleId = habit.schedule?.id
+    // No occurrence yet for the current period means nobody has checked in yet.
+    const occurrence = scheduleId ? currentPeriodOccurrences.get(scheduleId) : null
 
     return {
       ...habit,
@@ -188,12 +233,7 @@ export async function getUserHabits(userId?: string): Promise<{ habits: Habit[] 
     return { habits: null, error: error.message }
   }
 
-  // Transform to flatten nested data
-  const habits = (data as any[]).map(h => ({
-    ...h,
-    group: h.groups || h.group,
-    schedule: h.habit_schedules?.[0] || h.schedule
-  }))
+  const habits = ((data as any[]) ?? []).map(normalizeHabitRow)
   const habitsWithActivity = await addCurrentActivity(supabase, habits)
 
   return { habits: habitsWithActivity as Habit[], error: null }
@@ -249,11 +289,7 @@ export async function getGroupHabits(groupId: string): Promise<{ habits: Habit[]
     return { habits: null, error: error.message }
   }
 
-  const habits = (data as any[]).map(habit => ({
-    ...habit,
-    group: habit.groups || habit.group,
-    schedule: habit.habit_schedules?.[0] || habit.schedule,
-  }))
+  const habits = ((data as any[]) ?? []).map(normalizeHabitRow)
   const habitsWithActivity = await addCurrentActivity(supabase, habits)
 
   return { habits: habitsWithActivity as Habit[], error: null }
@@ -267,12 +303,14 @@ export async function createHabit(formData: FormData): Promise<{ habit: Habit | 
     return { habit: null, error: 'Not authenticated' }
   }
 
+  const rawTarget = parseInt(String(formData.get('target_quantity') ?? ''), 10)
   const rawData = {
     group_id: formData.get('group_id'),
     name: formData.get('name'),
     frequency: formData.get('frequency'),
-    target_quantity: parseInt(formData.get('target_quantity') as string, 10),
-    timezone: formData.get('timezone') as string,
+    // NaN would surface as a confusing zod message; let the schema reject it clearly.
+    target_quantity: Number.isNaN(rawTarget) ? undefined : rawTarget,
+    timezone: (formData.get('timezone') as string) || undefined,
     custom_cron: (formData.get('custom_cron') as string) || null,
   }
 
@@ -341,6 +379,9 @@ export async function createHabit(formData: FormData): Promise<{ habit: Habit | 
     })
 
   if (scheduleError) {
+    // Don't leave a habit without a schedule behind: it could never be checked
+    // in and every screen would show it as "incomplete configuration".
+    await supabase.from('habits').delete().eq('id', habit.id)
     return { habit: null, error: scheduleError.message }
   }
 
@@ -371,7 +412,7 @@ export async function checkInHabit(
 
   const { data: habit } = await supabase
     .from('habits' as any)
-    .select('id, group_id, created_by, habit_schedules(id)')
+    .select('id, group_id, created_by, timezone, habit_schedules(id)')
     .eq('id', result.data.habit_id)
     .single()
   const scheduleId = (habit as any)?.habit_schedules?.[0]?.id
@@ -394,17 +435,21 @@ export async function checkInHabit(
     return { checkin: null, error: 'Not authorized' }
   }
 
-  const periodStart = new Date()
-  periodStart.setUTCHours(0, 0, 0, 0)
-  const periodEnd = new Date(periodStart)
-  periodEnd.setUTCDate(periodEnd.getUTCDate() + 1)
+  // The day is defined by the habit's own timezone, not UTC and not the
+  // viewer's current timezone.
+  const { start: periodStart, end: periodEnd } = getCurrentDailyPeriod((habit as any).timezone)
 
-  let { data: occurrence } = await supabase
-    .from('habit_occurrences' as any)
-    .select('id')
-    .eq('schedule_id', scheduleId)
-    .eq('period_start', periodStart.toISOString())
-    .maybeSingle()
+  const findOccurrence = async () => {
+    const { data } = await supabase
+      .from('habit_occurrences' as any)
+      .select('id')
+      .eq('schedule_id', scheduleId)
+      .eq('period_start', periodStart.toISOString())
+      .maybeSingle()
+    return data as { id: string } | null
+  }
+
+  let occurrence = await findOccurrence()
 
   if (!occurrence) {
     const created = await supabase
@@ -416,9 +461,15 @@ export async function checkInHabit(
       })
       .select('id')
       .single()
-    occurrence = created.data
-    if (created.error && !occurrence) {
-      return { checkin: null, error: created.error.message }
+    occurrence = (created.data as { id: string } | null) ?? null
+
+    if (!occurrence) {
+      // A concurrent request may have created the same occurrence first
+      // (unique index on schedule_id + period_start). Re-read before failing.
+      occurrence = await findOccurrence()
+      if (!occurrence) {
+        return { checkin: null, error: created.error?.message || 'Could not start today\'s check-in period' }
+      }
     }
   }
 
@@ -435,13 +486,18 @@ export async function checkInHabit(
 
   if (error) {
     if (error.code === '23505') {
+      // Idempotent: a double-tap or retry must not create a second check-in.
       const { data: existingCheckin } = await supabase
         .from('habit_checkins' as any)
-        .select('id')
+        .select('id, status')
         .eq('occurrence_id', occurrence.id)
         .eq('profile_id', user.id)
         .maybeSingle()
-      return { checkin: existingCheckin, error: null }
+
+      if (existingCheckin && !isCompletedCheckin(existingCheckin.status)) {
+        return { checkin: null, error: `Today is already recorded as ${existingCheckin.status}, so it can't be checked in again.` }
+      }
+      return { checkin: existingCheckin ? { id: existingCheckin.id } : null, error: null }
     }
     return { checkin: null, error: error.message }
   }
@@ -475,6 +531,6 @@ export async function deleteHabit(habitId: string): Promise<{ success: boolean; 
     .eq('id', habitId)
 
   return error
-    ? { success: false, error: error.message }
+    ? { success: false, error: friendlyDeleteError(error.message, 'habit') }
     : { success: true, error: null }
 }

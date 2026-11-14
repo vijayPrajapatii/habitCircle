@@ -35,6 +35,9 @@
     --warning-foreground: 0 0% 100%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
+    /* Error TEXT on dark surfaces. --destructive is a dark red surface colour
+       (about 2:1 as text), so text uses this lighter red (7:1) instead. */
+    --destructive-text: 0 91% 71%;
 
     /* Borders - visible but quiet */
     --border: 240 3.7% 15.9%;
@@ -66,8 +69,10 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 90% 54%;
     --warning-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
+    /* AA: white on this surface is 5.8:1 (was 3.8:1) */
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
+    --destructive-text: 0 72% 42%;
     --border: 240 5.9% 90%;
     --border-strong: 240 5.9% 85%;
     --input: 240 5.9% 90%;
