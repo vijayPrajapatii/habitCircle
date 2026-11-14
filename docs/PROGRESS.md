@@ -1,8 +1,97 @@
 # HabitCircle Progress & Milestone Tracker
 
 **Current Phase**: Phase 3 & 4 (Habits, Scheduling Engine, Financial Ledger & Polish)
-**Build Status**: ✅ Passing (`pnpm typecheck` & `pnpm build` clean)
-**Deployment Status**: Production Ready
+**Build Status**: ✅ `pnpm typecheck`, `pnpm test` (70 tests) and `pnpm build` pass. ❌ `pnpm lint` is broken (see below).
+**Deployment Status**: Database: migration 017 is APPLIED to production (2026-11-14) and verified. App code on `fix/bug-sweep` is NOT deployed yet and not committed; until it is, the live site runs the old code against the new database (compatible, except signed-out visitors opening an invite link see a plain permission error instead of being sent to login).
+
+---
+
+## Production database findings and fix (migration 017: APPLIED and verified)
+
+Read-only inspection of the live Supabase project (catalog + counts only; no user data read, no writes) on 2026-11-14:
+8 users, 4 groups, 10 invitations, **0 penalties / ledger entries / payments**. Migrations 005–016 were applied by hand
+(the history table lists only 001–004). Verified live: any signed-in user can insert themselves as owner of any group;
+with only the public anon key all 10 invitation codes and all 8 profiles are readable; clients can write penalties,
+allocations, ledger rows and `confirmed` payments; anon can execute every SECURITY DEFINER RPC.
+
+`supabase/migrations/017_security_lockdown.sql` + `docs/decisions/002-security-lockdown.md` fix these (forward-only,
+idempotent). **Status: applied to production by the owner on 2026-11-14 with `supabase db query --linked -f`.**
+
+Evidence (all run against production inside transactions that always roll back, so nothing was saved):
+`supabase/verify/security_simulation.sql` creates fixture users/groups/habits, runs 44 attack and happy-path checks as
+`anon` / `authenticated` users, then raises an error carrying the result. Before 017: 14 pass, 22 FAIL, 1 masked
+(M1 self-insert as owner, M3 stranger deletes another group's owner, S1/S2 anon reads invitations and profiles,
+P1/P3/P4/P5 direct writes to penalties/ledger/payments, C1 `verified` check-in, G1-G4 privileges, ...). After 017 and
+again after applying it for real: **44 pass, 0 fail, 0 masked**. Re-run any time (read-only in effect):
+`supabase db query --linked -f supabase/verify/security_simulation.sql` (expected result `SIM 44P 0F 0M`; the CLI shows it
+as an error message by design). The CLI truncates error text near 1000 characters, hence the compact format.
+All 10 invitations that existed were already expired, so the world-readable codes were not usable at the time.
+`supabase db advisors --linked --type security` after applying: the anon-executable and mutable-search_path warnings are
+gone. Remaining by design/known: signed-in users can execute the app's own RPCs and the policy helpers, `pg_trgm` in
+`public`, leaked-password protection disabled (dashboard setting: Authentication → Passwords).
+
+Open follow-ups: reconcile the migration history table (`supabase migration repair --status applied 005 ... 017`,
+needs the owner's approval); deploy the matching app code.
+
+App-side changes already in the branch (typecheck/tests/build green): `middleware.ts` → `proxy.ts` (Next 16),
+login honours a validated `redirectTo` (`src/lib/redirect.ts`, tested), `/invite/accept` sends signed-out users to login
+and back and is no longer double-fired in strict mode, reset-password works with PKCE links (was always "Invalid link"),
+duplicate-username sign-up message, invitation actions validate/clamp input and revoke reports a no-op, non-atomic
+client fallbacks for penalties/payments removed, `confirmPayment`/`rejectPayment` server actions added (no UI yet),
+legacy `/dashboard/groups/[groupId]/invite` now redirects, duplicate `package-lock.json` removed, CLAUDE.md "Commands"
+filled in.
+
+---
+
+## Bug & Responsiveness Sweep (branch `fix/bug-sweep`)
+
+Scope: no new features; fix bugs, make every screen responsive. UI/logic fixes are done and verified;
+database / RLS / money / auth fixes are written (above) and waiting for the dry-run + apply step.
+
+### Fixed (verified)
+- **Check-in status never loaded**: `schedule:habit_schedules(...)` arrives as an array, so `habit.schedule.id` was
+  undefined and every habit showed no check-ins, "daily" and "target 1x". Rows are now normalised (`normalizeHabitRow`).
+- **Stale "Checked in" on a new day / wrong day boundary**: current period was compared as strings
+  (`+00:00` vs `Z`, never equal) and computed in UTC. It is now computed in the habit's own timezone via
+  `getCurrentDailyPeriod` (daily reset at the habit's midnight, e.g. IST, not 05:30 IST) and compared as instants.
+- **Dashboard** embedded `habit_occurrences` under `habits` (invalid relation, error swallowed → always "No habits yet")
+  and tested occurrence status `'verified'` (impossible per CHECK). Rebuilt on `getUserHabits()`.
+- Error boundary reset on navigation (one crash no longer breaks every dashboard page until reload).
+- Error states with retry on Dashboard, Habits, Circles, Circle detail, Ledger, Leaderboard, Activity, Notifications.
+- Circle detail: members who left were still listed (`left_at` not selected); non-admins saw an invite form that always failed.
+- Ledger: hard-coded "Good Standing", stakes of different currencies summed under one symbol, "Verified" label on
+  merely-submitted check-ins. Leaderboard: counted only `submitted`, score capped at 100% after one check-in (now completion rate).
+- Notifications: removed fabricated "unread" notifications; read state is now persisted; rows are keyboard-accessible.
+- Money display/parse: `₹100.50` no longer rounds to `₹101`; no float math (`parseMajorUnits`, `formatMoneySafe`).
+- Login: "Resend verification" button also submitted the login form. Habit/circle creation: validation + rollback of a
+  habit left without a schedule. Currency restricted to supported list server-side. Circle capacity can't drop below member count.
+- Responsive/a11y: sticky desktop sidebar, drawer ESC + scroll lock + hidden-when-closed (the ESC handler documented
+  earlier did not exist), Habits header overflow at 375px (New Habit button was off-screen), 40–44px touch targets,
+  `viewport-fit=cover`, missing favicon 404s, AA contrast for error text (was ~2:1 in dark theme) and light-theme status colours.
+- Verified with headless Chrome against a local fake Supabase: 14 pages × 375/768/1280px, happy / empty / error data:
+  0 horizontal overflow, 0 crashes, 0 console errors.
+
+### Known gaps / blockers (not fixed yet)
+- **RLS / money holes are live in production** until 017 is applied (see the section above).
+- **Migrations are unverified from scratch**: Docker/WSL is not installed yet, so `supabase db reset` and `supabase test db`
+  have not been run (Definition of Done items 2 and 3 are open). Static review suspects 010 re-creates a policy 009 created
+  and 008 drops/recreates `group_invitations` with a different schema than 004/014/015 expect. Production differs from the
+  repo chain (e.g. `handle_new_user` was patched by hand to read `raw_user_meta_data`), so the chain may not reproduce
+  production. Consider a squashed baseline migration once Docker works.
+- **No pgTAP behavioural tests for 017 yet** (only table-exists smoke tests): they must be written and run together with the
+  local stack, not shipped unrun.
+- **No audit log table** for financial/role-changing actions (CLAUDE.md requires one); no rate limiting on sensitive actions.
+- Supabase advisor leftovers after 017: `pg_trgm` in `public`, leaked-password protection is off (dashboard setting),
+  helper functions `is_group_member`/`has_group_role` remain callable by signed-in users (membership oracle).
+- **Penalty / settlement flow is not wired to any screen** (`recordHabitFailure`, `getCircleSettlements`, `SettleUpDialog`
+  are unused), so no penalty is ever created and the Ledger shows check-in-derived data. No evaluation job exists.
+- Weekly/monthly habits still create one occurrence per day (no per-period quantity accumulation); needs an RPC.
+- `pnpm lint` fails: Next 16 removed `next lint` and there is no ESLint config; CI runs it.
+- `src/types/supabase.ts` was regenerated from production (`supabase gen types typescript --linked`), but no Supabase client
+  uses it yet (clients are untyped, hence the `as any` casts). Adopting `createClient<Database>()` is a separate refactor.
+- Primary button contrast is 3.4:1 (white on blue); needs a design decision.
+- `/onboarding` is orphaned. Payment confirmation has server actions (`confirmPayment`/`rejectPayment`) but no screen yet.
+- Penalty `status` is no longer flipped to `paid` by settlements; balances are allocations minus confirmed payments.
 
 ---
 
