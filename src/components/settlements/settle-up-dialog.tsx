@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { recordSettlement } from '@/features/settlements/actions'
 import { toast } from '@/hooks/use-toast'
-import { CURRENCY_SYMBOLS, formatMoney } from '@/domain/money'
+import { CURRENCY_SYMBOLS, formatMoneySafe, minorToMajorInput, parseMajorUnits } from '@/domain/money'
 import {
   CheckCircle2,
   Loader2,
@@ -75,7 +75,7 @@ export function SettleUpDialog({
   const [peerName, setPeerName] = useState(defaultPeerName || peers[0]?.name || 'Member')
   const [groupId, setGroupId] = useState(defaultGroupId || groups[0]?.id || '')
   // Input in major currency units (e.g. 250 for 25000 paise)
-  const initialMajor = defaultAmount ? (defaultAmount / 100).toFixed(0) : '100'
+  const initialMajor = defaultAmount ? minorToMajorInput(defaultAmount) : '100'
   const [amountStr, setAmountStr] = useState(initialMajor)
   const [method, setMethod] = useState('UPI')
   const [notes, setNotes] = useState('')
@@ -86,7 +86,7 @@ export function SettleUpDialog({
     if (defaultPeerId) setPeerId(defaultPeerId)
     if (defaultPeerName) setPeerName(defaultPeerName)
     if (defaultGroupId) setGroupId(defaultGroupId)
-    if (defaultAmount) setAmountStr((defaultAmount / 100).toFixed(0))
+    if (defaultAmount) setAmountStr(minorToMajorInput(defaultAmount))
   }, [defaultPeerId, defaultPeerName, defaultGroupId, defaultAmount])
 
   const symbol = CURRENCY_SYMBOLS[currency] || currency
@@ -95,13 +95,12 @@ export function SettleUpDialog({
     e.preventDefault()
     setError(null)
 
-    const numAmount = parseFloat(amountStr)
-    if (isNaN(numAmount) || numAmount <= 0) {
-      setError('Please enter a valid positive settlement amount')
+    // Exact decimal parsing: never float-multiply money.
+    const minorUnits = parseMajorUnits(amountStr)
+    if (minorUnits === null || minorUnits <= 0) {
+      setError('Enter a settlement amount greater than zero, with at most 2 decimal places')
       return
     }
-
-    const minorUnits = Math.round(numAmount * 100)
 
     const activeGroupId = groupId || defaultGroupId || groups[0]?.id
     const activePeerId = peerId || defaultPeerId || peers[0]?.id
@@ -130,7 +129,7 @@ export function SettleUpDialog({
 
     toast({
       title: 'Settlement recorded!',
-      description: `Settled ${symbol}${numAmount} with ${peerName} via ${method}.`,
+      description: `Settled ${symbol}${amountStr.trim()} with ${peerName} via ${method}.`,
     })
 
     setSubmitting(false)
@@ -143,7 +142,7 @@ export function SettleUpDialog({
       <DialogContent className="w-[calc(100%-1.25rem)] max-w-md p-4 sm:p-6">
         <DialogHeader className="text-left">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+            <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-800 dark:text-green-400">
               <CheckCircle2 className="h-4 w-4" />
             </div>
             <div>
@@ -175,7 +174,7 @@ export function SettleUpDialog({
             {defaultAmount && (
               <div className="flex justify-between items-center text-xs pt-1 border-t">
                 <span className="text-muted-foreground">Current Debt:</span>
-                <span className="font-bold text-destructive">{formatMoney(defaultAmount, currency)}</span>
+                <span className="font-bold text-destructive">{formatMoneySafe(defaultAmount, currency)}</span>
               </div>
             )}
           </div>
@@ -192,8 +191,9 @@ export function SettleUpDialog({
               <Input
                 id="settle-amount"
                 type="number"
-                min="1"
-                step="any"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
                 value={amountStr}
                 onChange={(e) => setAmountStr(e.target.value)}
                 placeholder="0"

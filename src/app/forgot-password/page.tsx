@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
 
     try {
       const supabase = (await import('@/lib/supabase/client')).createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/reset-password`,
       })
       if (error) throw error
@@ -40,12 +40,12 @@ export default function ForgotPasswordPage() {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/10">
-              <CheckCircle2 className="h-7 w-7 text-green-500" />
+              <CheckCircle2 className="h-7 w-7 text-green-800 dark:text-green-400" />
             </div>
             <CardTitle className="text-2xl">Check your email</CardTitle>
             <CardDescription>
-              We've sent a password reset link to <strong>{email}</strong>.
-              The link expires in 24 hours.
+              If an account exists for <strong>{email}</strong>, we've sent a password reset link.
+              The link expires soon, so use it promptly.
             </CardDescription>
           </CardHeader>
           <CardContent>

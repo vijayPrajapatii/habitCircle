@@ -36,7 +36,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/hooks/use-toast'
-import { CURRENCY_SYMBOLS } from '@/domain/money'
+import { formatMoneySafe } from '@/domain/money'
+import { isCompletedCheckin } from '@/domain/checkin-state'
 
 interface Group {
   id: string
@@ -96,6 +97,7 @@ export default function GroupPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [habits, setHabits] = useState<Habit[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
   // Name editing
@@ -143,14 +145,23 @@ export default function GroupPage() {
       const [groupRes, habitsRes] = await Promise.all([
         supabase
           .from('groups')
-          .select(`*, members: group_members (user_id, role, profiles(username))`)
+          // `left_at` must be selected: it is what the filter below relies on.
+          .select(`*, members: group_members (user_id, role, left_at, profiles(username))`)
           .eq('id', params.groupId)
-          .single(),
+          .maybeSingle(),
         getGroupHabits(params.groupId),
       ])
 
-      if (groupRes.error || !groupRes.data) {
-        setLoading(false)
+      // A real failure (network, permissions) is not "circle not found".
+      if (groupRes.error) {
+        setLoadError(groupRes.error.message)
+        return
+      }
+
+      // No row: removed circle, or the viewer is not an active member (RLS).
+      if (!groupRes.data) {
+        setGroup(null)
+        setLoadError(null)
         return
       }
 
@@ -169,9 +180,10 @@ export default function GroupPage() {
       if (habitsRes.habits) {
         setHabits(habitsRes.habits)
       }
-
-      setLoading(false)
+      setLoadError(null)
     } catch {
+      setLoadError('Failed to load this circle')
+    } finally {
       setLoading(false)
     }
   }, [params?.groupId, router])
@@ -357,6 +369,19 @@ export default function GroupPage() {
     return <GroupSkeleton />
   }
 
+  if (loadError) {
+    return (
+      <Card className="border-destructive/50">
+        <CardContent className="py-8 text-center px-4">
+          <p className="text-destructive mb-4 text-sm" role="alert">{loadError}</p>
+          <Button size="sm" onClick={() => { setLoadError(null); setLoading(true); loadData() }}>
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (!group) {
     return (
       <Card className="border-dashed">
@@ -371,8 +396,10 @@ export default function GroupPage() {
     )
   }
 
-  const isOwner = members.some((member) => member.user_id === userId && member.role === 'owner')
-  const currencySymbol = CURRENCY_SYMBOLS[group.currency] || group.currency
+  const myRole = members.find((member) => member.user_id === userId)?.role
+  const isOwner = myRole === 'owner'
+  // Only owners and admins can create invitations (the database enforces it too).
+  const canInvite = myRole === 'owner' || myRole === 'admin'
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -413,7 +440,7 @@ export default function GroupPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    className="h-10 w-10 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground"
                     aria-label="Edit circle name"
                     onClick={() => setEditingName(true)}
                   >
@@ -423,7 +450,7 @@ export default function GroupPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                    className="h-10 w-10 sm:h-8 sm:w-8 text-destructive hover:bg-destructive/10"
                     aria-label="Delete circle"
                     onClick={() => { setDeleteError(''); setDeleteOpen(true) }}
                   >
@@ -439,7 +466,7 @@ export default function GroupPage() {
           </p>
         </div>
 
-        <Button onClick={() => setCreateHabitOpen(true)} size="sm" className="h-9 px-3 text-xs sm:text-sm flex-shrink-0 self-start sm:self-auto">
+        <Button onClick={() => setCreateHabitOpen(true)} size="sm" className="h-10 sm:h-9 px-3 text-xs sm:text-sm flex-shrink-0 self-start sm:self-auto">
           <Plus className="h-4 w-4 mr-1.5" />
           Add Habit
         </Button>
@@ -454,7 +481,7 @@ export default function GroupPage() {
               Penalty Stake
             </div>
             <div className="text-lg sm:text-2xl font-bold mt-1">
-              {currencySymbol}{(group.penalty_amount / 100).toFixed(0)}
+              {formatMoneySafe(group.penalty_amount, group.currency)}
             </div>
             <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">per missed habit</p>
           </CardContent>
@@ -494,7 +521,7 @@ export default function GroupPage() {
             <Target className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             Circle Habits ({habits.length})
           </h2>
-          <Button variant="outline" size="sm" onClick={() => setCreateHabitOpen(true)} className="h-8 text-xs">
+          <Button variant="outline" size="sm" onClick={() => setCreateHabitOpen(true)} className="h-10 sm:h-8 text-xs">
             <Plus className="h-3.5 w-3.5 mr-1" />
             New
           </Button>
@@ -518,7 +545,8 @@ export default function GroupPage() {
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
             {habits.map((habit) => {
               const isCreator = habit.created_by === userId
-              const isCheckedIn = habit.checkins?.some(c => c.profile_id === userId)
+              // A recorded miss is not a check-in: only submitted/verified count.
+              const isCheckedIn = habit.checkins?.some(c => c.profile_id === userId && isCompletedCheckin(c.status))
 
               return (
                 <Card key={habit.id} className="transition-all hover:border-primary/40">
@@ -535,7 +563,7 @@ export default function GroupPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
+                          className="h-10 w-10 sm:h-8 sm:w-8 -mr-1.5 sm:mr-0 text-muted-foreground hover:text-destructive flex-shrink-0"
                           onClick={() => setDeleteHabitId(habit.id)}
                           aria-label={`Delete ${habit.name}`}
                         >
@@ -556,10 +584,10 @@ export default function GroupPage() {
                     <div className="mt-3.5 pt-2.5 border-t flex items-center justify-between gap-2">
                       <Button
                         size="sm"
-                        variant={isCheckedIn ? 'secondary' : 'default'}
+                        variant={isCheckedIn || !isCreator ? 'secondary' : 'default'}
                         onClick={() => handleCheckIn(habit.id)}
                         disabled={!isCreator || isCheckedIn || checkingInHabitId === habit.id}
-                        className="text-xs h-8 px-3"
+                        className="text-xs h-10 sm:h-8 px-3"
                       >
                         {checkingInHabitId === habit.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -631,6 +659,13 @@ export default function GroupPage() {
               Invite Partners
             </CardTitle>
           </CardHeader>
+          {!canInvite ? (
+            <CardContent className="p-3.5 sm:p-4 pt-0">
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Only the circle owner or an admin can invite new partners. Ask them to share an invite link with your friend.
+              </p>
+            </CardContent>
+          ) : (
           <CardContent className="p-3.5 sm:p-4 pt-0 space-y-3.5">
             <form onSubmit={handleInvite} className="space-y-3">
               <div className="space-y-1">
@@ -647,10 +682,10 @@ export default function GroupPage() {
               </div>
 
               {inviteSuccess && (
-                <p className="text-xs text-green-500 font-medium">{inviteSuccess}</p>
+                <p className="text-xs text-green-800 dark:text-green-400 font-medium">{inviteSuccess}</p>
               )}
               {inviteError && (
-                <p className="text-xs text-destructive font-medium">{inviteError}</p>
+                <p className="text-xs text-destructive font-medium" role="alert">{inviteError}</p>
               )}
 
               <Button type="submit" size="sm" disabled={inviting || !inviteEmail.trim()} className="w-full h-10 text-xs sm:text-sm">
@@ -667,7 +702,7 @@ export default function GroupPage() {
                 disabled={!inviteLink}
                 className="w-full justify-center h-10 text-xs sm:text-sm"
               >
-                {copiedLink ? <Check className="h-4 w-4 mr-2 text-green-500" /> : <Copy className="h-4 w-4 mr-2" />}
+                {copiedLink ? <Check className="h-4 w-4 mr-2 text-green-800 dark:text-green-400" /> : <Copy className="h-4 w-4 mr-2" />}
                 {copiedLink ? 'Copied to Clipboard!' : 'Copy Shareable Link'}
               </Button>
               {inviteLink ? (
@@ -681,6 +716,7 @@ export default function GroupPage() {
               )}
             </div>
           </CardContent>
+          )}
         </Card>
       </div>
 
@@ -760,7 +796,7 @@ export default function GroupPage() {
               This permanently removes the circle, all group habits, active invitations, and member records. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          {deleteError && <p className="text-xs sm:text-sm text-destructive">{deleteError}</p>}
+          {deleteError && <p className="text-xs sm:text-sm text-destructive" role="alert">{deleteError}</p>}
           <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting} className="w-full sm:w-auto h-10">
               Cancel

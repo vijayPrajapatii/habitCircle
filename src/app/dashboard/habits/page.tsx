@@ -20,7 +20,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/hooks/use-toast'
-import { HabitCreationDialog, type CircleOption } from '@/components/habits/habit-creation-dialog'
+import { isCompletedCheckin } from '@/domain/checkin-state'
+
+/** Badge colour for a check-in status: only completed ones are "success". */
+function checkinBadgeVariant(status: string): 'success' | 'warning' | 'destructive' | 'secondary' {
+  if (isCompletedCheckin(status)) return 'success'
+  if (status === 'missed') return 'destructive'
+  if (status === 'disputed') return 'warning'
+  return 'secondary'
+}
 
 interface Group {
   id: string
@@ -96,6 +104,7 @@ export default function HabitsPage() {
   const [deletingHabit, setDeletingHabit] = useState<string | null>(null)
   const [deleteHabitId, setDeleteHabitId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -117,25 +126,29 @@ export default function HabitsPage() {
         getUserHabits(),
       ])
 
-      if (groupsResult.data) {
-        const userGroups = (groupsResult.data as any[] | null)
-          ?.map((membership) => membership.groups)
-          .filter(Boolean) || []
-        setGroups(userGroups)
-        if (userGroups.length > 0 && !habitGroupId) {
-          setHabitGroupId(userGroups[0].id)
-        }
+      if (groupsResult.error || habitsResult.error) {
+        setLoadError(groupsResult.error?.message || habitsResult.error || 'Failed to load habits')
+        return
       }
 
-      if (habitsResult.habits) {
-        setHabits(habitsResult.habits as unknown as Habit[])
+      const userGroups = (groupsResult.data as any[] | null)
+        ?.map((membership) => membership.groups)
+        .filter(Boolean) || []
+      setGroups(userGroups)
+      // Functional update: depending on `habitGroupId` here made this callback
+      // change identity on every selection and refetch everything.
+      if (userGroups.length > 0) {
+        setHabitGroupId(current => current || userGroups[0].id)
       }
 
-      setLoading(false)
+      setHabits((habitsResult.habits ?? []) as unknown as Habit[])
+      setLoadError(null)
     } catch {
+      setLoadError('Failed to load habits')
+    } finally {
       setLoading(false)
     }
-  }, [router, habitGroupId])
+  }, [router])
 
   useEffect(() => {
     loadData()
@@ -228,6 +241,22 @@ export default function HabitsPage() {
     return <HabitsSkeleton />
   }
 
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Habits</h1>
+        <Card className="border-destructive/50">
+          <CardContent className="py-6 sm:py-8 text-center px-4">
+            <p className="text-destructive mb-4 text-sm" role="alert">{loadError}</p>
+            <Button size="sm" onClick={() => { setLoadError(null); setLoading(true); loadData() }}>
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   const filteredHabits = selectedGroupId === 'all'
     ? habits
     : habits.filter(h => (h as any).group_id === selectedGroupId)
@@ -248,7 +277,9 @@ export default function HabitsPage() {
             <select
               value={selectedGroupId}
               onChange={(e) => setSelectedGroupId(e.target.value)}
-              className="flex-1 sm:flex-initial h-9 rounded-md border bg-background px-2.5 text-xs"
+              // min-w-0: a <select> is as wide as its longest option by default,
+              // which pushed the "New Habit" button off-screen at 375px.
+              className="min-w-0 flex-1 sm:flex-initial sm:max-w-[16rem] h-10 sm:h-9 truncate rounded-md border bg-background px-2.5 text-xs"
               aria-label="Filter habits by circle"
             >
               <option value="all">All Circles ({habits.length})</option>
@@ -262,7 +293,7 @@ export default function HabitsPage() {
             onClick={() => { setError(null); setDialogOpen(true) }}
             disabled={!groups.length}
             size="sm"
-            className="h-9 px-3 text-xs sm:text-sm flex-shrink-0"
+            className="h-10 sm:h-9 px-3 text-xs sm:text-sm flex-shrink-0"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             <span>New Habit</span>
@@ -298,11 +329,24 @@ export default function HabitsPage() {
             )}
           </CardContent>
         </Card>
+      ) : filteredHabits.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-8 sm:py-10 text-center px-4">
+            <Target className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm font-medium">No habits in this circle yet</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => setSelectedGroupId('all')}>
+              Show all circles
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {filteredHabits.map((habit) => {
             const isCreator = habit.created_by === currentUserId
-            const isCheckedIn = habit.checkins?.some(c => c.profile_id === currentUserId)
+            // A recorded miss is not a check-in: only submitted/verified count.
+            const isCheckedIn = habit.checkins?.some(
+              c => c.profile_id === currentUserId && isCompletedCheckin(c.status),
+            )
 
             return (
               <Card key={`${habit.id}-${habit.checkins?.length || 0}`} className="flex flex-col justify-between hover:border-primary/40 transition-all">
@@ -321,7 +365,7 @@ export default function HabitsPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
+                          className="h-10 w-10 sm:h-8 sm:w-8 -mr-1.5 sm:mr-0 text-muted-foreground hover:text-destructive flex-shrink-0"
                           aria-label={`Delete ${habit.name}`}
                           onClick={() => setDeleteHabitId(habit.id)}
                           disabled={deletingHabit === habit.id}
@@ -348,10 +392,12 @@ export default function HabitsPage() {
                     <div className="flex items-center justify-between gap-2">
                       <Button
                         size="sm"
-                        variant={isCheckedIn ? 'secondary' : 'default'}
+                        // Not actionable (already done, or someone else's habit): never
+                        // style it like a live primary button.
+                        variant={isCheckedIn || !isCreator ? 'secondary' : 'default'}
                         onClick={() => handleCheckIn(habit.id)}
                         disabled={!isCreator || checkingIn === habit.id || isCheckedIn}
-                        className="text-xs h-9 flex-1 sm:flex-initial"
+                        className="text-xs h-10 sm:h-9 flex-1 sm:flex-initial"
                       >
                         {checkingIn === habit.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -378,7 +424,7 @@ export default function HabitsPage() {
                             <span className="font-medium text-foreground truncate max-w-[120px]">
                               {c.profile?.username || 'Member'}
                             </span>
-                            <Badge variant="success" className="text-[9px] py-0 px-1.5 flex-shrink-0">
+                            <Badge variant={checkinBadgeVariant(c.status)} className="text-[10px] py-0 px-1.5 flex-shrink-0 capitalize">
                               {c.status}
                             </Badge>
                           </div>

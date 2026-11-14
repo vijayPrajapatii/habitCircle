@@ -11,6 +11,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/hooks/use-toast'
 import { useTheme } from 'next-themes'
+import { APP_NAME } from '@/config/brand'
+import { timezoneOptions, formatTimezoneLabel } from '@/lib/timezones'
+import { isValidUsername, normalizeUsername, USERNAME_HELP } from '@/lib/username'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -59,6 +62,12 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!isValidUsername(username)) {
+      toast({ title: 'Invalid username', description: USERNAME_HELP, variant: 'destructive' })
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -67,10 +76,11 @@ export default function SettingsPage() {
 
       if (!user) return
 
+      const normalized = normalizeUsername(username)
       const { error } = await supabase
         .from('profiles')
         .update({
-          username: username.trim(),
+          username: normalized,
           timezone: timezone.trim(),
           updated_at: new Date().toISOString(),
         })
@@ -79,10 +89,12 @@ export default function SettingsPage() {
       if (error) {
         toast({
           title: 'Update failed',
-          description: error.message,
+          // 23505 = unique violation on profiles.username
+          description: error.code === '23505' ? 'That username is already taken. Try another one.' : error.message,
           variant: 'destructive',
         })
       } else {
+        setUsername(normalized)
         toast({
           title: 'Settings saved',
           description: 'Your profile settings have been updated.',
@@ -118,8 +130,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground mt-0.5 text-xs sm:text-sm">
           Manage your account preferences, timezone, and appearance.
         </p>
       </div>
@@ -146,6 +158,11 @@ export default function SettingsPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Your handle"
                   required
+                  minLength={3}
+                  maxLength={30}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
               <div className="space-y-2">
@@ -162,19 +179,12 @@ export default function SettingsPage() {
                 onChange={(e) => setTimezone(e.target.value)}
                 className="w-full h-10 rounded-md border bg-background px-3 py-2 text-sm"
               >
-                <option value="UTC">UTC (Universal Time)</option>
-                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                <option value="America/New_York">America/New York (EST/EDT)</option>
-                <option value="America/Los_Angeles">America/Los Angeles (PST/PDT)</option>
-                <option value="America/Chicago">America/Chicago (CST/CDT)</option>
-                <option value="Europe/London">Europe/London (GMT/BST)</option>
-                <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
-                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                {timezoneOptions(timezone).map((tz) => (
+                  <option key={tz} value={tz}>{formatTimezoneLabel(tz)}</option>
+                ))}
               </select>
               <p className="text-[11px] text-muted-foreground">
-                Habit period boundaries (daily midnight / weekly Monday) are evaluated in your habit's timezone.
+                Used for new habits. Each habit keeps the timezone it was created with, so its daily deadline never moves when you change this.
               </p>
             </div>
 
@@ -194,7 +204,7 @@ export default function SettingsPage() {
             Appearance
           </CardTitle>
           <CardDescription>
-            Customize how HabitCircle looks on your device.
+            Customize how {APP_NAME} looks on your device.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

@@ -11,8 +11,8 @@ const badgeVariants = cva(
         secondary: 'border-transparent bg-secondary text-secondary-foreground',
         destructive: 'border-transparent bg-destructive text-destructive-foreground',
         outline: 'text-foreground',
-        success: 'border-transparent bg-green-500/15 text-green-500',
-        warning: 'border-transparent bg-amber-500/15 text-amber-500',
+        success: 'border-transparent bg-green-500/15 text-green-800 dark:text-green-400',
+        warning: 'border-transparent bg-amber-500/15 text-amber-800 dark:text-amber-400',
       },
     },
     defaultVariants: {
@@ -22,12 +22,14 @@ const badgeVariants = cva(
 )
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
+// A <span>, not a <div>: badges are inline content and are rendered inside
+// <p> elements (a <div> in a <p> is invalid HTML and triggers hydration errors).
 function Badge({ className, variant, ...props }: BadgeProps) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <span className={cn(badgeVariants({ variant }), className)} {...props} />
   )
 }
 

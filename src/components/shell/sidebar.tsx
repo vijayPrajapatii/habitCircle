@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import {
@@ -41,13 +41,31 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps) {
   const [internalIsOpen, setInternalIsOpen] = useState(false)
   const isDrawerOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen
 
-  const closeDrawer = () => {
+  const closeDrawer = useCallback(() => {
     if (onClose) {
       onClose()
     } else {
       setInternalIsOpen(false)
     }
-  }
+  }, [onClose])
+
+  // Mobile drawer: Escape closes it, and the page behind it must not scroll.
+  useEffect(() => {
+    if (!isDrawerOpen) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDrawer()
+    }
+    document.addEventListener('keydown', onKeyDown)
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isDrawerOpen, closeDrawer])
 
   const [userName, setUserName] = useState('User')
   const [userEmail, setUserEmail] = useState('')
@@ -121,10 +139,15 @@ export function Sidebar({ isOpen: controlledIsOpen, onClose }: SidebarProps) {
       )}
 
       {/* Sidebar / Drawer */}
+      {/* On mobile the closed drawer is `invisible` so its links leave the tab
+          order and the accessibility tree (it is only translated off-screen).
+          On desktop it is a sticky full-height rail so Settings / Sign out stay
+          in view however long the page is. */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transform transition-transform duration-200 ease-in-out bg-card border-r border-border flex flex-col lg:static lg:w-64 lg:translate-x-0',
-          isDrawerOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+          'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transform transition-[transform,visibility] duration-200 ease-in-out bg-card border-r border-border flex flex-col',
+          'lg:sticky lg:top-0 lg:h-dvh lg:w-64 lg:max-w-none lg:flex-shrink-0 lg:translate-x-0 lg:visible',
+          isDrawerOpen ? 'translate-x-0 visible shadow-2xl' : '-translate-x-full invisible'
         )}
         aria-label="Main navigation"
       >

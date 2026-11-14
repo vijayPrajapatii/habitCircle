@@ -1,40 +1,17 @@
 'use client'
 
-import { Target, Users, Calendar, CheckCircle2, ArrowRight, Plus } from 'lucide-react'
+import { Target, Users, CheckCircle2, ArrowRight, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { APP_NAME } from '@/config/brand'
-
-interface Habit {
-  id: string
-  group_id: string
-  name: string
-  timezone: string
-  created_at: string
-  group: {
-    id: string
-    name: string
-    penalty_amount: number
-    currency: string
-  }
-  schedule: {
-    id: string
-    frequency: string
-    target_quantity: number
-    custom_cron: string | null
-  }
-  occurrences?: {
-    id: string
-    period_start: string
-    period_end: string
-    status: string
-  }[]
-}
+import { getUserHabits, type Habit } from '@/features/habits/actions'
+import { isCompletedCheckin } from '@/domain/checkin-state'
 
 function StatCard({
   title,
@@ -78,13 +55,14 @@ function HabitRow({
     <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg border transition-colors hover:bg-muted/50 gap-2">
       <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
         <div
+          aria-hidden="true"
           className={`h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full flex-shrink-0 ${
             status === 'completed' ? 'bg-green-500' : 'bg-muted-foreground/30'
           }`}
         />
         <div className="min-w-0 flex-1">
           <p className="font-medium text-xs sm:text-sm truncate">{name}</p>
-          <p className="text-[11px] sm:text-xs text-muted-foreground truncate">{frequency} • {groupName}</p>
+          <p className="text-[11px] sm:text-xs text-muted-foreground truncate capitalize">{frequency} • {groupName}</p>
         </div>
       </div>
       <Badge variant={status === 'completed' ? 'success' : 'secondary'} className="text-[10px] sm:text-xs py-0.5 flex-shrink-0">
@@ -143,8 +121,10 @@ function formatToday(): string {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [habits, setHabits] = useState<Habit[]>([])
-  const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
+  const [groupCount, setGroupCount] = useState(0)
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
@@ -154,60 +134,45 @@ export default function DashboardPage() {
       const supabase = createClient()
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const metadataName = user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.username
-      setUserName(metadataName || user.email?.split('@')[0] || '')
-
-      const { data: groupData, error: groupError } = await supabase
-        .from('group_members' as any)
-        .select('groups (id, name)')
-        .eq('user_id', user.id)
-        .is('left_at', null)
-
-      if (groupError) {
-        setError(groupError.message)
-        setLoading(false)
+      if (!user) {
+        router.push('/login')
         return
       }
 
-      const flat = (groupData as any[])?.flatMap((g: any) => g.groups || []) ?? []
-      const uniqueGroups = Array.from(new Map(flat.map((g: any) => [g.id, g])).values())
-      setGroups(uniqueGroups)
+      setUserId(user.id)
+      const metadataName = user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.username
+      setUserName(metadataName || user.email?.split('@')[0] || '')
 
-      const groupIds = uniqueGroups.map(g => g.id)
+      // Habits (with the CURRENT period's check-ins) come from the same server
+      // action the Habits page uses, so both screens always agree.
+      const [membershipsResult, habitsResult] = await Promise.all([
+        supabase
+          .from('group_members' as any)
+          .select('group_id')
+          .eq('user_id', user.id)
+          .is('left_at', null),
+        getUserHabits(),
+      ])
 
-      if (groupIds.length > 0) {
-        const { data: habitData, error: habitError } = await supabase
-          .from('habits' as any)
-          .select(`
-            id,
-            name,
-            timezone,
-            created_at,
-            group:groups (id, name),
-            schedule:habit_schedules (frequency, target_quantity),
-            occurrences:habit_occurrences (status)
-          `)
-          .in('group_id', groupIds)
-          .order('created_at', { ascending: false })
-
-        if (!habitError && habitData) {
-          const transformed = (habitData as any[]).map(h => ({
-            ...h,
-            group: h.groups || h.group,
-            schedule: h.habit_schedules?.[0] || h.schedule,
-          }))
-          setHabits(transformed)
-        }
+      if (membershipsResult.error) {
+        setError(membershipsResult.error.message)
+        return
+      }
+      if (habitsResult.error) {
+        setError(habitsResult.error)
+        return
       }
 
-      setLoading(false)
+      const uniqueGroupIds = new Set((membershipsResult.data as any[] | null)?.map(m => m.group_id) ?? [])
+      setGroupCount(uniqueGroupIds.size)
+      setHabits(habitsResult.habits ?? [])
+      setError(null)
     } catch {
       setError('Failed to load dashboard data')
+    } finally {
       setLoading(false)
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     loadData()
@@ -223,7 +188,7 @@ export default function DashboardPage() {
         <h1 className="text-xl sm:text-2xl font-bold">Dashboard</h1>
         <Card className="border-destructive/50">
           <CardContent className="py-6 sm:py-8 text-center px-4">
-            <p className="text-destructive mb-4 text-sm">{error}</p>
+            <p className="text-destructive mb-4 text-sm" role="alert">{error}</p>
             <Button size="sm" onClick={() => { setError(null); setLoading(true); loadData() }}>
               Try Again
             </Button>
@@ -233,22 +198,26 @@ export default function DashboardPage() {
     )
   }
 
-  const completedCount = habits.reduce(
-    (acc, h) => acc + (h.occurrences?.filter(o => o.status === 'verified').length || 0),
-    0
-  )
+  // "Today's Focus" is the member's own commitments. Other members' habits are
+  // visible on the Habits page but are not this member's to check in.
+  const myHabits = habits.filter(habit => habit.created_by === userId)
+  const myCircleCount = new Set(myHabits.map(habit => habit.group_id)).size
 
-  const completionRate = habits.length > 0
-    ? `${Math.round((completedCount / Math.max(1, habits.length)) * 100)}%`
+  const withState = myHabits.map(habit => ({
+    habit,
+    isCompleted: habit.checkins?.some(
+      checkin => checkin.profile_id === userId && isCompletedCheckin(checkin.status),
+    ) ?? false,
+  }))
+  const pendingHabits = withState.filter(item => !item.isCompleted)
+  const completedHabits = withState.filter(item => item.isCompleted)
+
+  const completionRate = myHabits.length > 0
+    ? `${Math.round((completedHabits.length / myHabits.length) * 100)}%`
     : '—'
 
-  const todayHabits = habits.map(habit => ({
-    ...habit,
-    isCompleted: habit.occurrences?.some(o => o.status === 'verified') ?? false,
-  }))
-
-  const pendingHabits = todayHabits.filter(h => !h.isCompleted)
-  const completedHabits = todayHabits.filter(h => h.isCompleted)
+  const shownCount = Math.min(pendingHabits.length, 5) + Math.min(completedHabits.length, 3)
+  const hiddenCount = myHabits.length - shownCount
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -261,7 +230,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Empty State: No Groups */}
-      {groups.length === 0 ? (
+      {groupCount === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-8 sm:py-14 text-center px-4">
             <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
@@ -277,14 +246,14 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
-      ) : habits.length === 0 ? (
-        /* Empty State: Groups but No Habits */
+      ) : myHabits.length === 0 ? (
+        /* Empty State: In circles but no habit of your own yet */
         <Card className="border-dashed">
           <CardContent className="py-8 sm:py-14 text-center px-4">
             <Target className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
             <h2 className="text-base sm:text-lg font-semibold mb-1.5">No habits yet</h2>
             <p className="text-muted-foreground mb-5 max-w-sm mx-auto text-xs sm:text-sm leading-relaxed">
-              You are in {groups.length} {groups.length === 1 ? 'circle' : 'circles'}. Add your first habit commitment to begin tracking.
+              You are in {groupCount} {groupCount === 1 ? 'circle' : 'circles'}. Add your first habit commitment to begin tracking.
             </p>
             <Button asChild size="default" className="w-full sm:w-auto">
               <Link href="/dashboard/habits">
@@ -300,20 +269,20 @@ export default function DashboardPage() {
           <div className="grid gap-2.5 sm:gap-4 grid-cols-2 sm:grid-cols-3">
             <StatCard
               title="Active Habits"
-              value={habits.length}
-              description={`across ${groups.length} ${groups.length === 1 ? 'group' : 'groups'}`}
+              value={myHabits.length}
+              description={`across ${myCircleCount} ${myCircleCount === 1 ? 'circle' : 'circles'}`}
               icon={Target}
             />
             <StatCard
               title="Completion Rate"
               value={completionRate}
-              description="current cycle"
+              description="this period"
               icon={CheckCircle2}
             />
             <StatCard
               title="Active Circles"
-              value={groups.length}
-              description={`${habits.length} habits total`}
+              value={groupCount}
+              description={`${habits.length} ${habits.length === 1 ? 'habit' : 'habits'} total`}
               icon={Users}
               className="col-span-2 sm:col-span-1"
             />
@@ -322,8 +291,8 @@ export default function DashboardPage() {
           {/* Today's Habits Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-4 pb-2">
-              <CardTitle className="text-sm sm:text-base font-semibold">Today's Focus</CardTitle>
-              <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-xs">
+              <CardTitle className="text-sm sm:text-base font-semibold">Today&apos;s Focus</CardTitle>
+              <Button variant="ghost" size="sm" asChild className="h-9 px-2 text-xs">
                 <Link href="/dashboard/habits">
                   View all
                   <ArrowRight className="h-3.5 w-3.5 ml-1" />
@@ -333,7 +302,7 @@ export default function DashboardPage() {
             <CardContent className="p-3.5 sm:p-4 pt-0">
               <div className="space-y-2">
                 {/* Pending first */}
-                {pendingHabits.slice(0, 5).map(habit => (
+                {pendingHabits.slice(0, 5).map(({ habit }) => (
                   <HabitRow
                     key={habit.id}
                     name={habit.name}
@@ -343,7 +312,7 @@ export default function DashboardPage() {
                   />
                 ))}
                 {/* Then completed */}
-                {completedHabits.slice(0, 3).map(habit => (
+                {completedHabits.slice(0, 3).map(({ habit }) => (
                   <HabitRow
                     key={habit.id}
                     name={habit.name}
@@ -352,9 +321,9 @@ export default function DashboardPage() {
                     status="completed"
                   />
                 ))}
-                {habits.length > 8 && (
+                {hiddenCount > 0 && (
                   <p className="text-[11px] text-muted-foreground text-center pt-2">
-                    +{habits.length - 8} more habits
+                    +{hiddenCount} more {hiddenCount === 1 ? 'habit' : 'habits'}
                   </p>
                 )}
               </div>
@@ -381,7 +350,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-left min-w-0">
                   <span className="font-semibold text-xs sm:text-sm block truncate">My Circles</span>
-                  <span className="text-[11px] text-muted-foreground block truncate">Manage partners & stakes</span>
+                  <span className="text-[11px] text-muted-foreground block truncate">Manage partners &amp; stakes</span>
                 </div>
               </Link>
             </Button>
