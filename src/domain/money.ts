@@ -5,6 +5,9 @@
  * cents for USD). This module NEVER uses floats for money arithmetic.
  */
 
+/** Currencies HabitCircle supports. There is no conversion between them. */
+export const SUPPORTED_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'] as const;
+
 /** Map of ISO 4217 currency codes → display symbols. */
 export const CURRENCY_SYMBOLS: Readonly<Record<string, string>> = {
   INR: '₹',
@@ -39,6 +42,28 @@ export function formatMoney(amount: number, currency: string): string {
   const minorStr = minor.toString().padStart(2, '0');
 
   return `${negative ? '-' : ''}${symbol}${major}.${minorStr}`;
+}
+
+/**
+ * Display-safe variant of {@link formatMoney} for rendering stored data.
+ *
+ * `formatMoney` throws on an unsupported currency or a non-integer amount,
+ * which would crash a whole page if one bad row reached the UI. This never
+ * throws: it falls back to "<CODE> 12.34" (or "—" for a non-finite amount).
+ */
+export function formatMoneySafe(amount: number | null | undefined, currency: string): string {
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return '—';
+  // Stored values should already be integers; rounding only guards display.
+  const rounded = Math.round(amount);
+  try {
+    return formatMoney(rounded, currency);
+  } catch {
+    const negative = rounded < 0;
+    const abs = Math.abs(rounded);
+    const major = Math.floor(abs / MINOR_UNIT_FACTOR);
+    const minor = (abs % MINOR_UNIT_FACTOR).toString().padStart(2, '0');
+    return `${negative ? '-' : ''}${currency || ''} ${major}.${minor}`.trim();
+  }
 }
 
 /**
@@ -89,6 +114,37 @@ export function parseMoney(display: string, currency: string): number {
   const result = major * MINOR_UNIT_FACTOR + minor;
 
   return negative ? -result : result;
+}
+
+/**
+ * Convert a user-typed amount in major units (e.g. "250" or "10.5") into
+ * integer minor units without any floating point arithmetic.
+ *
+ * Accepts digits with an optional decimal part of at most 2 places. Returns
+ * `null` for anything else (empty, negative, 3+ decimals, exponent notation,
+ * non-numeric) so callers can show a validation message instead of guessing.
+ *
+ * @example parseMajorUnits('250')   // 25000
+ * @example parseMajorUnits('10.5')  // 1050
+ * @example parseMajorUnits('10.555') // null
+ */
+export function parseMajorUnits(input: string): number | null {
+  const match = input.trim().match(/^(\d{1,9})(?:\.(\d{1,2}))?$/);
+  if (!match) return null;
+  const major = parseInt(match[1], 10);
+  const minor = match[2] ? parseInt(match[2].padEnd(2, '0'), 10) : 0;
+  return major * MINOR_UNIT_FACTOR + minor;
+}
+
+/**
+ * Render integer minor units as a plain major-unit string for form inputs,
+ * dropping a ".00" suffix: 25000 → "250", 1050 → "10.50".
+ */
+export function minorToMajorInput(minor: number): string {
+  const whole = Math.floor(Math.abs(minor) / MINOR_UNIT_FACTOR);
+  const frac = Math.abs(minor) % MINOR_UNIT_FACTOR;
+  const sign = minor < 0 ? '-' : '';
+  return frac === 0 ? `${sign}${whole}` : `${sign}${whole}.${frac.toString().padStart(2, '0')}`;
 }
 
 /**

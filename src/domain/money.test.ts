@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatMoney,
+  formatMoneySafe,
   parseMoney,
+  parseMajorUnits,
+  minorToMajorInput,
   splitEqually,
   sumAllocations,
   CURRENCY_SYMBOLS,
@@ -96,5 +99,52 @@ describe('sumAllocations', () => {
 
   it('throws on non-integer share', () => {
     expect(() => sumAllocations([10, 20.5])).toThrow()
+  })
+})
+
+describe('parseMajorUnits', () => {
+  it('converts whole and fractional major units without float math', () => {
+    expect(parseMajorUnits('250')).toBe(25000)
+    expect(parseMajorUnits('10.5')).toBe(1050)
+    expect(parseMajorUnits('10.05')).toBe(1005)
+    expect(parseMajorUnits('0.1')).toBe(10)
+    // classic float trap: 1.15 * 100 === 114.99999999999999
+    expect(parseMajorUnits('1.15')).toBe(115)
+    expect(parseMajorUnits('  42 ')).toBe(4200)
+  })
+
+  it('rejects invalid input instead of guessing', () => {
+    for (const bad of ['', 'abc', '-5', '1e3', '10.555', '1.', '.5', '1,000', '10 20', '9999999999']) {
+      expect(parseMajorUnits(bad)).toBeNull()
+    }
+  })
+})
+
+describe('minorToMajorInput', () => {
+  it('drops the decimal part when it is zero', () => {
+    expect(minorToMajorInput(25000)).toBe('250')
+    expect(minorToMajorInput(1050)).toBe('10.50')
+    expect(minorToMajorInput(5)).toBe('0.05')
+    expect(minorToMajorInput(0)).toBe('0')
+  })
+
+  it('round-trips with parseMajorUnits', () => {
+    for (const minor of [1, 99, 100, 101, 1050, 123456]) {
+      expect(parseMajorUnits(minorToMajorInput(minor))).toBe(minor)
+    }
+  })
+})
+
+describe('formatMoneySafe', () => {
+  it('matches formatMoney for supported currencies', () => {
+    expect(formatMoneySafe(10050, 'INR')).toBe('₹100.50')
+  })
+
+  it('never throws on unsupported currency, non-integers or missing values', () => {
+    expect(formatMoneySafe(10050, 'JPY')).toBe('JPY 100.50')
+    expect(formatMoneySafe(1050.4, 'USD')).toBe('$10.50')
+    expect(formatMoneySafe(null, 'INR')).toBe('—')
+    expect(formatMoneySafe(undefined, 'INR')).toBe('—')
+    expect(formatMoneySafe(Number.NaN, 'INR')).toBe('—')
   })
 })

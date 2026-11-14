@@ -81,6 +81,19 @@ const PAYMENT_TRANSITIONS: Readonly<Record<PaymentStatus, readonly PaymentStatus
 // ---------------------------------------------------------------------------
 
 /** All possible check-in statuses. */
+/**
+ * Check-in statuses that count as "the member completed this period".
+ *
+ * A `submitted` check-in is completed but not yet verified; `missed`,
+ * `pending`, `disputed` and `excused` never count as completed.
+ */
+export const COMPLETED_CHECKIN_STATUSES: readonly CheckinStatus[] = ['submitted', 'verified'];
+
+/** True when the status represents a completed (submitted or verified) check-in. */
+export function isCompletedCheckin(status: string): boolean {
+  return (COMPLETED_CHECKIN_STATUSES as readonly string[]).includes(status);
+}
+
 export const ALL_CHECKIN_STATUSES: readonly CheckinStatus[] = [
   'pending',
   'submitted',
